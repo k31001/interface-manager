@@ -1,0 +1,37 @@
+{
+  "projects": [
+    {
+      "id": "helios",
+      "name": "Helios",
+      "codename": "AUR-H5000",
+      "description": "Next-gen flagship application processor. Aggressive re-architecture on top of the Titan platform.",
+      "repo": "https://github.com/k31001/helios-soc.git",
+      "rdlDir": "rdl",
+      "halDir": "hal/include",
+      "baseline": "v0.1.0",
+      "warnThresholdPct": 4
+    },
+    {
+      "id": "selene",
+      "name": "Selene",
+      "codename": "AUR-S3200",
+      "description": "Cost-optimized derivative SoC reusing the Luna v2.1 platform with minimal interface churn.",
+      "repo": "https://github.com/k31001/selene-soc.git",
+      "rdlDir": "rdl",
+      "halDir": "hal/include",
+      "baseline": "v0.1.0",
+      "warnThresholdPct": 4
+    },
+    {
+      "id": "pulsar",
+      "name": "Pulsar",
+      "codename": "AUR-P9100",
+      "description": "Flagship PCIe Gen5 / NVMe 2.0 enterprise SSD controller. Imported from the Polaris Gen4 platform; media path re-architected for BiCS8 NAND.",
+      "repo": "https://github.com/k31001/pulsar-soc.git",
+      "rdlDir": "rdl",
+      "halDir": "hal/include",
+      "baseline": "v0.1.0",
+      "warnThresholdPct": 4
+    }
+  ]
+}

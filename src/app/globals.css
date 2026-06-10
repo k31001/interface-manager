@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #0a0a0a;
 }
 
 @theme inline {
@@ -12,15 +12,142 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-feature-settings: "tnum", "cv03", "cv04";
+}
+
+::selection {
+  background: #0a0a0a;
+  color: #fafafa;
+}
+
+/* thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+/* diagonal hatch for reserved bits */
+.hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    rgba(10, 10, 10, 0.07) 3px,
+    rgba(10, 10, 10, 0.07) 4.5px
+  );
+}
+
+/* vertical text for narrow bit fields */
+.vtext {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-orientation: mixed;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: fade-up 0.3s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.18s cubic-bezier(0.21, 1.02, 0.73, 1) both;
+}
+
+@keyframes flash-ring {
+  0% {
+    box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(10, 10, 10, 0);
+  }
+}
+.flash-ring {
+  animation: flash-ring 1.6s ease-out 2;
+}
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: var(--dash, 1200);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw-line {
+  stroke-dasharray: var(--dash, 1200);
+  animation: draw-line 0.9s ease-out both;
+}
+
+/* ---- Bit, the chip mascot ---- */
+.im-logo svg {
+  transition: transform 0.25s cubic-bezier(0.21, 1.02, 0.73, 1);
+  transform-origin: 50% 60%;
+}
+.im-logo .im-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes im-blink {
+  0%, 92%, 100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+.im-logo .im-eyes {
+  animation: im-blink 5.5s ease-in-out infinite;
+}
+.im-logo .im-pins {
+  transition: transform 0.25s ease;
+}
+/* hover: the die perks up and the pins splay out a touch */
+.group\/logo:hover .im-logo svg,
+.im-logo:hover svg {
+  transform: translateY(-1.5px) rotate(-3deg);
+}
+.group\/logo:hover .im-pins,
+.im-logo:hover .im-pins {
+  transform: scale(1.06);
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .im-logo .im-eyes {
+    animation: none;
+  }
 }
