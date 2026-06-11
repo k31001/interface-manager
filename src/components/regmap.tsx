@@ -1,5 +1,6 @@
 "use client";
 
+import { accessStyle, specialAccessTokens } from "@/lib/access";
 import { abbreviate } from "@/lib/abbrev";
 import { bitsLabel, hex } from "@/lib/format";
 import type { SfrField, SfrReg } from "@/lib/types";
@@ -29,16 +30,38 @@ function buildCells(reg: SfrReg): Cell[] {
 }
 
 function FieldTip({ reg, field }: { reg: SfrReg; field: SfrField }) {
+  const a = accessStyle(field.sw);
   return (
     <span className="block min-w-44">
-      <span className="block font-mono text-xs font-semibold">
+      <span className="flex items-center gap-1.5 font-mono text-xs font-semibold">
         {reg.name}.{field.name}
+        <span className="rounded px-1 text-[9px] font-bold uppercase" style={{ background: a.accent || "#525252", color: "#fff" }}>
+          {field.sw}
+        </span>
       </span>
       <span className="mt-1 block font-mono text-[10.5px] text-neutral-300">
         bits {bitsLabel(field.msb, field.lsb)} · sw {field.sw} · hw {field.hw} · reset {hex(field.reset ?? 0)}
       </span>
       {field.desc && <span className="mt-1 block text-neutral-400">{field.desc}</span>}
     </span>
+  );
+}
+
+/** legend of the special access tokens present (omitted when everything is plain rw) */
+export function AccessLegend({ regs, className }: { regs: SfrReg[]; className?: string }) {
+  const tokens = specialAccessTokens(regs.flatMap((r) => r.fields.map((f) => f.sw)));
+  if (!tokens.length) return null;
+  return (
+    <div className={cx("flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-neutral-400", className)}>
+      <span className="tracking-wider uppercase">access</span>
+      {tokens.map((t) => (
+        <span key={t.token} className="inline-flex items-center gap-1" title={t.title}>
+          <span className="inline-block h-2 w-2 rounded-sm" style={{ background: t.accent }} />
+          <span className="font-mono text-neutral-500">{t.token}</span>
+          <span className="text-neutral-400">{t.title}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -110,11 +133,13 @@ export function RegBitRow({
         const maxChars = vertical ? 8 : Math.max(3, Math.floor((cell.span * CELL_W - 10) / 6.3));
         const text = abbreviate(f.name, maxChars);
         const highlighted = highlightField === f.name;
+        const a = accessStyle(f.sw);
         return (
           <td key={i} colSpan={cell.span} className="h-14 border-b border-l border-neutral-200 p-0">
             <HoverTip tip={<FieldTip reg={reg} field={f} />} className="block h-full w-full">
               <button
                 onClick={() => onFieldClick?.(reg, f)}
+                style={a.accent ? { boxShadow: `inset 0 -3px 0 0 ${a.accent}` } : undefined}
                 className={cx(
                   "flex h-14 w-full items-center justify-center overflow-hidden font-mono text-[10px] leading-none transition-all duration-100",
                   onFieldClick && "cursor-pointer",

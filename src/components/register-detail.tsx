@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { accessStyle } from "@/lib/access";
 import { bitsLabel, hex } from "@/lib/format";
 import type { SfrModule, SfrReg } from "@/lib/types";
-import { BitHeaderRow, RegBitRow } from "./regmap";
+import { AccessLegend, BitHeaderRow, RegBitRow } from "./regmap";
 import { Badge, Card, cx } from "./ui";
 
 function regReset(reg: SfrReg): string {
@@ -60,6 +61,7 @@ export function RegisterCard({
             <RegBitRow reg={reg} highlightField={highlightField} />
           </tbody>
         </table>
+        <AccessLegend regs={[reg]} className="mt-2.5 mb-0.5" />
       </div>
 
       {/* field table */}
@@ -85,8 +87,16 @@ export function RegisterCard({
             >
               <td className="px-4 py-1.5 font-mono text-[11px] whitespace-nowrap">{bitsLabel(f.msb, f.lsb)}</td>
               <td className="py-1.5 pr-3 font-mono text-[11.5px] font-semibold">{f.name}</td>
-              <td className={cx("py-1.5 pr-3 font-mono text-[10.5px]", highlightField === f.name ? "text-neutral-300" : "text-neutral-500")}>
-                {f.sw}
+              <td className="py-1.5 pr-3 font-mono text-[10.5px] whitespace-nowrap">
+                <span
+                  className={cx(
+                    "inline-flex items-center gap-1 rounded border px-1 py-px",
+                    highlightField === f.name ? "border-white/25 bg-white/10 text-neutral-100" : accessStyle(f.sw).badge
+                  )}
+                  title={accessStyle(f.sw).title}
+                >
+                  {f.sw}
+                </span>
               </td>
               <td className={cx("py-1.5 pr-3 font-mono text-[10.5px]", highlightField === f.name ? "text-neutral-300" : "text-neutral-500")}>
                 {f.hw}

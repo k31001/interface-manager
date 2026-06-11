@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, type SelectHTMLAttributes, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { IconChevron, IconWarn } from "./icons";
 
 export function cx(...parts: (string | false | null | undefined)[]) {
@@ -125,6 +126,44 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/** Determinate (when total is known) / indeterminate progress with a stage label. */
+export function ProgressPanel({
+  title,
+  label,
+  done,
+  total,
+}: {
+  title?: string;
+  label?: string;
+  done?: number;
+  total?: number;
+}) {
+  const pct = total && total > 0 ? Math.min(100, Math.round((done ?? 0) / total * 100)) : null;
+  return (
+    <div className="fade-in flex w-full max-w-sm flex-col gap-2 p-8">
+      <div className="flex items-center gap-2.5 text-sm text-neutral-600">
+        <span className="h-3.5 w-3.5 animate-spin rounded-full border-[1.5px] border-neutral-300 border-t-neutral-800" />
+        {title ?? "Loading…"}
+      </div>
+      <div className="im-indeterminate mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+        {pct != null ? (
+          <div className="h-full rounded-full bg-neutral-900 transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
+        ) : (
+          <span className="rounded-full bg-neutral-900" />
+        )}
+      </div>
+      <div className="flex items-center justify-between font-mono text-[10.5px] text-neutral-400">
+        <span className="truncate">{label ?? ""}</span>
+        {pct != null && (
+          <span className="shrink-0 pl-2 tabular-nums">
+            {done}/{total} · {pct}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ErrorBox({ message }: { message: string }) {
   return (
     <div className="fade-in m-4 rounded-lg border border-red-200 bg-red-50 p-4 font-mono text-xs text-red-700">
@@ -217,6 +256,53 @@ export function DeltaText({ value, invert }: { value: number; invert?: boolean }
 
 export function HoverTip({ tip, children, className }: { tip: ReactNode; children: ReactNode; className?: string }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  // last measured tooltip box (max-w-72 = 288px) — kept in state so the position
+  // computed during render never reads a ref and self-corrects when content changes
+  const [size, setSize] = useState({ w: 288, h: 96 });
+
+  // measure after every render so the box size stays correct as the tip content
+  // changes; the >1px guard makes it converge (no dependency array on purpose).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const el = tipRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (Math.abs(r.width - size.w) > 1 || Math.abs(r.height - size.h) > 1) setSize({ w: r.width, h: r.height });
+  });
+
+  let style: { left: number; top: number } | null = null;
+  if (pos && typeof window !== "undefined") {
+    const { w, h } = size;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const M = 8; // viewport margin
+    let left = pos.x + 14;
+    if (left + w > vw - M) left = pos.x - 14 - w; // flip to the left of the cursor
+    left = Math.max(M, Math.min(left, vw - w - M)); // clamp within viewport
+    let top = pos.y + 16;
+    if (top + h > vh - M) top = pos.y - 12 - h; // flip above the cursor
+    top = Math.max(M, Math.min(top, vh - h - M));
+    style = { left, top };
+  }
+
+  // Render the tooltip through a portal to <body> so `position: fixed` is always
+  // viewport-relative — otherwise an ancestor with a transform (e.g. the SFR map's
+  // entry animation) becomes the containing block and the tip drifts off-screen.
+  const overlay =
+    pos && style && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            ref={tipRef}
+            className="pop-in pointer-events-none fixed z-[200] max-w-72 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] leading-relaxed text-neutral-100 shadow-xl"
+            style={style}
+          >
+            {tip}
+          </span>,
+          document.body
+        )
+      : null;
+
   return (
     <span
       className={className}
@@ -225,17 +311,7 @@ export function HoverTip({ tip, children, className }: { tip: ReactNode; childre
       onMouseLeave={() => setPos(null)}
     >
       {children}
-      {pos && (
-        <span
-          className="pop-in pointer-events-none fixed z-50 max-w-72 rounded-md border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] leading-relaxed text-neutral-100 shadow-xl"
-          style={{
-            left: Math.min(pos.x + 12, typeof window !== "undefined" ? window.innerWidth - 300 : pos.x),
-            top: pos.y + 14,
-          }}
-        >
-          {tip}
-        </span>
-      )}
+      {overlay}
     </span>
   );
 }

@@ -11,13 +11,40 @@ export interface ChartPoint {
   meta?: string;
 }
 
+export type MarkerShape = "circle" | "square" | "triangle" | "diamond";
+
 export interface ChartSeries {
   id: string;
   label: string;
   points: ChartPoint[];
   color?: string;
   dashed?: boolean;
-  marker?: "circle" | "square";
+  marker?: MarkerShape;
+}
+
+/** Render an SVG marker glyph of the given shape, centered at (cx, cy). */
+function markerGlyph(
+  shape: MarkerShape | undefined,
+  cx: number,
+  cy: number,
+  r: number,
+  fill: string,
+  stroke: string,
+  sw = 1.5
+) {
+  const common = { fill, stroke, strokeWidth: sw, strokeLinejoin: "round" as const };
+  switch (shape) {
+    case "square":
+      return <rect x={cx - r} y={cy - r} width={r * 2} height={r * 2} {...common} />;
+    case "triangle": {
+      const h = r * 1.3;
+      return <path d={`M${cx},${cy - h} L${cx + h * 0.92},${cy + h * 0.72} L${cx - h * 0.92},${cy + h * 0.72} Z`} {...common} />;
+    }
+    case "diamond":
+      return <path d={`M${cx},${cy - r * 1.32} L${cx + r * 1.18},${cy} L${cx},${cy + r * 1.32} L${cx - r * 1.18},${cy} Z`} {...common} />;
+    default:
+      return <circle cx={cx} cy={cy} r={r} {...common} />;
+  }
 }
 
 function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
@@ -181,27 +208,7 @@ export function LineChart({
             />
             {s.points.map((p) => (
               <g key={`${s.id}-${p.x}`}>
-                {s.marker === "square" ? (
-                  <rect
-                    x={X(p.x) - 2.8}
-                    y={Y(p.y) - 2.8}
-                    width={5.6}
-                    height={5.6}
-                    fill="#fff"
-                    stroke={s.color ?? "#0a0a0a"}
-                    strokeWidth={1.5}
-                  />
-                ) : (
-                  <circle
-                    cx={X(p.x)}
-                    cy={Y(p.y)}
-                    r={hoverInfo?.x === p.x ? 4 : 2.8}
-                    fill="#fff"
-                    stroke={s.color ?? "#0a0a0a"}
-                    strokeWidth={1.5}
-                    style={{ transition: "r 0.15s" }}
-                  />
-                )}
+                {markerGlyph(s.marker, X(p.x), Y(p.y), hoverInfo?.x === p.x ? 4 : 2.9, "#fff", s.color ?? "#0a0a0a")}
                 {p.warn !== undefined && (
                   <g transform={`translate(${X(p.x)},${Y(p.y) - 13})`}>
                     <path d="M0 -4 L4.5 3.5 L-4.5 3.5 Z" fill="#dc2626" />
@@ -284,7 +291,7 @@ export function ScatterChart({
   xTitle,
   yTitle,
 }: {
-  groups: { id: string; label: string; color?: string; hollow?: boolean; points: { x: number; y: number; label?: string }[] }[];
+  groups: { id: string; label: string; color?: string; marker?: MarkerShape; hollow?: boolean; points: { x: number; y: number; label?: string }[] }[];
   height?: number;
   fmtX?: (x: number) => string;
   fmtY?: (y: number) => string;
@@ -330,18 +337,14 @@ export function ScatterChart({
         )}
         {groups.map((g) =>
           g.points.map((p, i) => (
-            <circle
+            <g
               key={`${g.id}${i}`}
-              cx={X(p.x)}
-              cy={Y(p.y)}
-              r={4}
-              fill={g.hollow ? "#fff" : (g.color ?? "#0a0a0a")}
-              stroke={g.color ?? "#0a0a0a"}
-              strokeWidth={1.5}
-              className="cursor-pointer transition-all hover:r-6"
+              className="cursor-pointer"
               onMouseEnter={() => setHover({ gx: X(p.x), gy: Y(p.y), text: `${g.label} ${p.label ?? ""} — ${fmtX(p.x)} / ${fmtY(p.y)}` })}
               onMouseLeave={() => setHover(null)}
-            />
+            >
+              {markerGlyph(g.marker, X(p.x), Y(p.y), 4.2, g.hollow ? "#fff" : (g.color ?? "#0a0a0a"), g.color ?? "#0a0a0a", 1.5)}
+            </g>
           ))
         )}
         {xTitle && (
@@ -367,23 +370,29 @@ export function ScatterChart({
   );
 }
 
-export function ChartLegend({ items }: { items: { label: string; color?: string; dashed?: boolean; marker?: "circle" | "square" }[] }) {
+export function ChartLegend({ items }: { items: { label: string; color?: string; dashed?: boolean; marker?: MarkerShape }[] }) {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-neutral-600">
       {items.map((it) => (
         <span key={it.label} className="inline-flex items-center gap-1.5">
           <svg width="22" height="10">
             <line x1="0" y1="5" x2="22" y2="5" stroke={it.color ?? "#0a0a0a"} strokeWidth={1.8} strokeDasharray={it.dashed ? "4 3" : undefined} />
-            {it.marker === "square" ? (
-              <rect x="8" y="2" width="6" height="6" fill="#fff" stroke={it.color ?? "#0a0a0a"} strokeWidth={1.3} />
-            ) : (
-              <circle cx="11" cy="5" r="3" fill="#fff" stroke={it.color ?? "#0a0a0a"} strokeWidth={1.3} />
-            )}
+            {markerGlyph(it.marker, 11, 5, 3, "#fff", it.color ?? "#0a0a0a", 1.3)}
           </svg>
           {it.label}
         </span>
       ))}
     </div>
+  );
+}
+
+/** Small inline shape swatch matching a chart series' marker (for legends/labels). */
+export function MarkerSwatch({ shape, color, size = 12, hollow }: { shape?: MarkerShape; color: string; size?: number; hollow?: boolean }) {
+  const c = size / 2;
+  return (
+    <svg width={size} height={size} className="inline-block shrink-0 align-middle">
+      {markerGlyph(shape, c, c, size * 0.34, hollow ? "#fff" : color, color, 1.4)}
+    </svg>
   );
 }
 

@@ -4,12 +4,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { fmtDate } from "@/lib/format";
 import type { StatsResult, TagInfo } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
+import { useApi, useStream } from "@/lib/use-api";
 import { ChartLegend, LineChart } from "./charts";
 import { IconWarn } from "./icons";
 import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
-import { Badge, Card, DeltaText, ErrorBox, Kpi, SectionLabel, Spinner, WarnBadge, cx } from "./ui";
+import { Badge, Card, DeltaText, ErrorBox, Kpi, ProgressPanel, SectionLabel, WarnBadge, cx } from "./ui";
 
 interface MetricDef {
   key: string; // key into reusePct
@@ -46,9 +46,9 @@ export function StatsView({ project, projectName, kind }: { project: string; pro
   const cfg = KIND_CONFIG[kind];
 
   const baseline = sp.get("baseline");
-  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags`);
-  const { data: stats, error, loading } = useApi<StatsResult>(
-    `/api/projects/${project}/${kind}/stats${baseline ? `?baseline=${encodeURIComponent(baseline)}` : ""}`
+  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=${kind}`);
+  const { data: stats, error, loading, progress } = useStream<StatsResult>(
+    `/api/projects/${project}/${kind}/stats/stream${baseline ? `?baseline=${encodeURIComponent(baseline)}` : ""}`
   );
 
   const setBaseline = (b: string | null) => {
@@ -115,7 +115,9 @@ export function StatsView({ project, projectName, kind }: { project: string; pro
 
       <div className="flex-1 overflow-y-auto p-6">
         {error && <ErrorBox message={error} />}
-        {loading && !stats && <Spinner label="Crunching tags…" />}
+        {loading && !stats && (
+          <ProgressPanel title="Computing reuse statistics…" label={progress?.label} done={progress?.done} total={progress?.total} />
+        )}
         {stats && last && (
           <div className="fade-up mx-auto flex max-w-6xl flex-col gap-5">
             {/* KPI row */}

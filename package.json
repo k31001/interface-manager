@@ -10,7 +10,8 @@
     "seed": "tsx scripts/seed.ts",
     "verify": "tsx scripts/verify.ts",
     "seed:ssd": "tsx scripts/seed-ssd.ts",
-    "verify:ssd": "tsx scripts/verify-ssd.ts"
+    "verify:ssd": "tsx scripts/verify-ssd.ts",
+    "test:rdl": "tsx scripts/test-rdl.ts"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.2",

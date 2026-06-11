@@ -1,9 +1,9 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { isAbsolute, join } from "node:path";
-import type { CommitInfo, ProjectConfig, TagInfo } from "./types";
+import type { CommitInfo, TagInfo } from "./types";
 
 const run = promisify(execFile);
 
@@ -19,23 +19,24 @@ function isRemoteUrl(repo: string): boolean {
 }
 
 /**
- * Resolve a project's repo setting to a local directory.
- * Remote URLs are cloned (bare) into data/cache and fetched on refresh.
+ * Resolve a repo spec (local path or remote URL) to a local directory.
+ * Remote URLs are cloned (bare) into data/cache, keyed on the URL so a project
+ * that points SFR and HAL at the same repo only clones it once. Fetched on refresh.
  */
-export async function resolveRepoDir(p: ProjectConfig, opts?: { fetch?: boolean }): Promise<string> {
-  if (isRemoteUrl(p.repo)) {
-    const hash = createHash("sha1").update(p.repo).digest("hex").slice(0, 10);
-    const dir = join(process.cwd(), "data", "cache", `${p.id}-${hash}.git`);
+export async function resolveRepoDir(repo: string, opts?: { fetch?: boolean }): Promise<string> {
+  if (isRemoteUrl(repo)) {
+    const hash = createHash("sha1").update(repo).digest("hex").slice(0, 12);
+    const dir = join(process.cwd(), "data", "cache", `${hash}.git`);
     if (!existsSync(dir)) {
       mkdirSync(join(process.cwd(), "data", "cache"), { recursive: true });
-      await run("git", ["clone", "--bare", p.repo, dir], { maxBuffer: 64 * 1024 * 1024 });
+      await run("git", ["clone", "--bare", repo, dir], { maxBuffer: 64 * 1024 * 1024 });
     } else if (opts?.fetch) {
       await git(dir, ["fetch", "--tags", "--force", "origin"]);
     }
     return dir;
   }
-  const dir = isAbsolute(p.repo) ? p.repo : join(process.cwd(), p.repo);
-  if (!existsSync(dir)) throw new Error(`Repository path not found: ${p.repo}`);
+  const dir = isAbsolute(repo) ? repo : join(process.cwd(), repo);
+  if (!existsSync(dir)) throw new Error(`Repository path not found: ${repo}`);
   return dir;
 }
 
@@ -81,6 +82,46 @@ export async function listFilesAt(repoDir: string, ref: string, subDir: string, 
 
 export async function readFileAt(repoDir: string, ref: string, path: string): Promise<string> {
   return git(repoDir, ["show", `${ref}:${path}`]);
+}
+
+/**
+ * Read many blobs at a single commit in ONE `git cat-file --batch` process,
+ * instead of spawning `git show` per file. The dominant speedup for repos with
+ * many .rdl/.h files (and for stats, which re-reads every file at every tag).
+ * Returns a map keyed by the input path; missing paths are omitted.
+ */
+export async function readFilesAt(repoDir: string, sha: string, paths: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!paths.length) return out;
+
+  return new Promise<Map<string, string>>((resolve, reject) => {
+    const cp = spawn("git", ["-C", repoDir, "cat-file", "--batch"], { stdio: ["pipe", "pipe", "pipe"] });
+    const buffers: Buffer[] = [];
+    let err = "";
+    cp.stdout.on("data", (d: Buffer) => buffers.push(d));
+    cp.stderr.on("data", (d: Buffer) => (err += d.toString()));
+    cp.on("error", reject);
+    cp.on("close", (code) => {
+      if (code !== 0 && !buffers.length) return reject(new Error(`git cat-file failed: ${err}`));
+      const buf = Buffer.concat(buffers);
+      let off = 0;
+      for (const path of paths) {
+        // header line: "<sha> <type> <size>\n"  OR  "<query> missing\n"
+        const nl = buf.indexOf(0x0a, off);
+        if (nl < 0) break;
+        const header = buf.toString("utf8", off, nl);
+        off = nl + 1;
+        const m = header.match(/ (\w+) (\d+)$/);
+        if (!m) continue; // "missing" — skip this path (header had no size)
+        const size = parseInt(m[2], 10);
+        out.set(path, buf.toString("utf8", off, off + size));
+        off += size + 1; // skip the trailing newline git appends after the blob
+      }
+      resolve(out);
+    });
+    cp.stdin.write(paths.map((p) => `${sha}:${p}`).join("\n") + "\n");
+    cp.stdin.end();
+  });
 }
 
 export async function recentCommits(repoDir: string, n: number, ref = "HEAD"): Promise<CommitInfo[]> {

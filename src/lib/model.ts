@@ -1,9 +1,14 @@
-import { cached } from "./cache";
-import { listFilesAt, listTags, readFileAt, resolveRepoDir, revParse } from "./git";
+import { diskCached } from "./cache";
+import { baselineFor, dirFor, repoFor } from "./config";
+import { listFilesAt, listTags, readFilesAt, resolveRepoDir, revParse } from "./git";
 import { parseHalHeader } from "./hal";
 import { parseRdl } from "./rdl";
+
+/** progress callback: (filesDone, filesTotal, currentLabel) */
+export type Progress = (done: number, total: number, label: string) => void;
 import type {
   HalModel,
+  InterfaceKind,
   ProjectConfig,
   SfrIp,
   SfrModel,
@@ -13,32 +18,37 @@ import type {
   TagInfo,
 } from "./types";
 
-export async function projectTags(p: ProjectConfig): Promise<TagInfo[]> {
-  const dir = await resolveRepoDir(p);
+export { baselineFor, dirFor, repoFor };
+
+export async function projectTags(p: ProjectConfig, kind: InterfaceKind = "sfr"): Promise<TagInfo[]> {
+  const dir = await resolveRepoDir(repoFor(p, kind));
   return listTags(dir);
 }
 
 /** Resolve a ref string ("" or "latest" means newest tag, falling back to HEAD). */
-export async function resolveRef(p: ProjectConfig, ref?: string | null): Promise<string> {
+export async function resolveRef(p: ProjectConfig, ref: string | null | undefined, kind: InterfaceKind): Promise<string> {
   if (ref && ref !== "latest") return ref;
-  const tags = await projectTags(p);
+  const tags = await projectTags(p, kind);
   return tags.length ? tags[tags.length - 1].name : "HEAD";
 }
 
-export async function loadSfr(p: ProjectConfig, refInput?: string | null): Promise<SfrModel> {
-  const ref = await resolveRef(p, refInput);
-  const dir = await resolveRepoDir(p);
+export async function loadSfr(p: ProjectConfig, refInput?: string | null, onProgress?: Progress): Promise<SfrModel> {
+  const dir = await resolveRepoDir(repoFor(p, "sfr"));
+  const rdlDir = dirFor(p, "sfr");
+  const ref = await resolveRef(p, refInput, "sfr");
   const sha = await revParse(dir, ref);
 
-  return cached(`sfr:${dir}:${sha}:${p.rdlDir}`, async () => {
-    const files = await listFilesAt(dir, sha, p.rdlDir, ".rdl");
-    const modules = await Promise.all(
-      files.map(async (f) => ({ file: f, mod: parseRdl(await readFileAt(dir, sha, f), f) }))
-    );
+  return diskCached(`sfr:${dir}:${sha}:${rdlDir}`, async () => {
+    const files = await listFilesAt(dir, sha, rdlDir, ".rdl");
+    const contents = await readFilesAt(dir, sha, files); // one git process for all blobs
+    const modules = files.map((f, i) => {
+      onProgress?.(i + 1, files.length, f.split("/").pop() ?? f);
+      return { file: f, mod: parseRdl(contents.get(f) ?? "", f) };
+    });
 
     // hierarchy from path: <rdlDir>/<system>/<subsystem>/<ip>/<file>.rdl
     const systems = new Map<string, Map<string, Map<string, SfrModule[]>>>();
-    const prefix = p.rdlDir.replace(/\/+$/, "") + "/";
+    const prefix = rdlDir.replace(/\/+$/, "") + "/";
     for (const { file, mod } of modules) {
       const rel = file.startsWith(prefix) ? file.slice(prefix.length) : file;
       const parts = rel.split("/");
@@ -91,20 +101,21 @@ export async function loadSfr(p: ProjectConfig, refInput?: string | null): Promi
   });
 }
 
-export async function loadHal(p: ProjectConfig, refInput?: string | null): Promise<HalModel> {
-  const ref = await resolveRef(p, refInput);
-  const dir = await resolveRepoDir(p);
+export async function loadHal(p: ProjectConfig, refInput?: string | null, onProgress?: Progress): Promise<HalModel> {
+  const dir = await resolveRepoDir(repoFor(p, "hal"));
+  const halDir = dirFor(p, "hal");
+  const ref = await resolveRef(p, refInput, "hal");
   const sha = await revParse(dir, ref);
 
-  return cached(`hal:${dir}:${sha}:${p.halDir}`, async () => {
-    const prefix = p.halDir.replace(/\/+$/, "") + "/";
-    const paths = await listFilesAt(dir, sha, p.halDir, ".h");
-    const files = await Promise.all(
-      paths.map(async (f) => {
-        const rel = f.startsWith(prefix) ? f.slice(prefix.length) : f;
-        return parseHalHeader(await readFileAt(dir, sha, f), f, rel);
-      })
-    );
+  return diskCached(`hal:${dir}:${sha}:${halDir}`, async () => {
+    const prefix = halDir.replace(/\/+$/, "") + "/";
+    const paths = await listFilesAt(dir, sha, halDir, ".h");
+    const contents = await readFilesAt(dir, sha, paths); // one git process for all headers
+    const files = paths.map((f, i) => {
+      onProgress?.(i + 1, paths.length, f.split("/").pop() ?? f);
+      const rel = f.startsWith(prefix) ? f.slice(prefix.length) : f;
+      return parseHalHeader(contents.get(f) ?? "", f, rel);
+    });
     const withClasses = files.filter((f) => f.classes.length > 0).sort((a, b) => a.rel.localeCompare(b.rel));
     let classes = 0;
     let fns = 0;

@@ -3,11 +3,11 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { HalClass, HalFile, HalFn, HalModel, TagInfo } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
+import { useApi, useStream } from "@/lib/use-api";
 import { IconDoc, IconFn, IconFolder } from "./icons";
 import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
-import { Badge, Card, ErrorBox, SectionLabel, Spinner, cx } from "./ui";
+import { Badge, Card, ErrorBox, ProgressPanel, SectionLabel, Spinner, cx } from "./ui";
 
 // ---------- signature rendering ----------
 
@@ -196,9 +196,9 @@ export function HalViewer({ project, projectName }: { project: string; projectNa
   const [filter, setFilter] = useState("");
   const [fnFilter, setFnFilter] = useState("");
 
-  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags`);
-  const { data: model, error, loading } = useApi<HalModel>(
-    `/api/projects/${project}/hal${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
+  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=hal`);
+  const { data: model, error, loading, progress } = useStream<HalModel>(
+    `/api/projects/${project}/hal/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
   );
 
   const setParams = (patch: Record<string, string | null>) => {
@@ -246,7 +246,9 @@ export function HalViewer({ project, projectName }: { project: string; projectNa
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
           {error && <ErrorBox message={error} />}
-          {loading && !model && <Spinner label="Parsing headers…" />}
+          {loading && !model && (
+            <ProgressPanel title="Parsing HAL headers…" label={progress?.label} done={progress?.done} total={progress?.total} />
+          )}
 
           {model && !selFile && (
             <div className="fade-up grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

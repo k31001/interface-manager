@@ -1,5 +1,5 @@
 import { handle } from "@/lib/api";
-import { readConfig } from "@/lib/config";
+import { readConfig, repoFor } from "@/lib/config";
 import { commitCount, listTags, recentCommits, resolveRepoDir } from "@/lib/git";
 import { loadHal, loadSfr } from "@/lib/model";
 import { computeHalStats, computeSfrStats } from "@/lib/stats";
@@ -13,7 +13,7 @@ export async function GET() {
     const projects = await Promise.all(
       cfg.projects.map(async (p) => {
         try {
-          const dir = await resolveRepoDir(p);
+          const dir = await resolveRepoDir(repoFor(p, "sfr"));
           const [tags, nCommits, commits, sfr, hal, sfrStats, halStats] = await Promise.all([
             listTags(dir),
             commitCount(dir),

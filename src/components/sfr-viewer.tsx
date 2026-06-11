@@ -4,13 +4,13 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { hex } from "@/lib/format";
 import type { SfrIp, SfrModel, SfrModule, SfrSubsystem, SfrSystem, TagInfo } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
+import { useApi, useStream } from "@/lib/use-api";
 import { IconChevron, IconChip, IconDoc, IconFolder } from "./icons";
-import { RegmapTable } from "./regmap";
+import { AccessLegend, RegmapTable } from "./regmap";
 import { ModuleDetail } from "./register-detail";
 import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
-import { Badge, Card, ErrorBox, SectionLabel, Spinner, cx } from "./ui";
+import { Badge, Card, ErrorBox, ProgressPanel, SectionLabel, Spinner, cx } from "./ui";
 
 type FlatMod = { system: string; subsystem: string; ip: string; mod: SfrModule };
 
@@ -227,6 +227,7 @@ function IpRegmap({
         Register map at a glance — hover a field for details, click to open the register table, click a module name for
         the detailed view.
       </p>
+      <AccessLegend regs={ip.modules.flatMap((m) => m.regs)} />
       <RegmapTable
         groups={ip.modules.map((m) => ({
           id: m.path,
@@ -296,9 +297,9 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
   const field = sp.get("field");
   const [filter, setFilter] = useState("");
 
-  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags`);
-  const { data: model, error, loading } = useApi<SfrModel>(
-    `/api/projects/${project}/sfr${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
+  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=sfr`);
+  const { data: model, error, loading, progress } = useStream<SfrModel>(
+    `/api/projects/${project}/sfr/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
   );
 
   const flat = useMemo(() => (model ? flatten(model) : []), [model]);
@@ -358,7 +359,9 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
           {error && <ErrorBox message={error} />}
-          {loading && !model && <Spinner label="Parsing SystemRDL…" />}
+          {loading && !model && (
+            <ProgressPanel title="Parsing SystemRDL…" label={progress?.label} done={progress?.done} total={progress?.total} />
+          )}
           {model && !sel && <OverviewCards model={model} onSelect={(s) => setParams({ sel: s })} />}
           {model && sel?.startsWith("ip:") && (
             <IpRegmap

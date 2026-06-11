@@ -1,18 +1,27 @@
 // ---------- Config ----------
 
+export type InterfaceKind = "sfr" | "hal";
+
 export interface ProjectConfig {
   id: string;
   name: string;
   codename?: string;
   description?: string;
-  /** Local path (relative to app root or absolute) or remote git URL */
+  /** Default repo (local path relative to app root / absolute, or remote git URL) */
   repo: string;
-  /** Directory inside the repo containing SystemRDL trees (system/subsystem/ip/*.rdl) */
+  /** Optional separate repo for SFR (SystemRDL); falls back to `repo` */
+  sfrRepo?: string;
+  /** Optional separate repo for HAL (C++ headers); falls back to `repo` */
+  halRepo?: string;
+  /** Directory inside the SFR repo containing SystemRDL trees (system/subsystem/ip/*.rdl) */
   rdlDir: string;
-  /** Directory inside the repo containing HAL C++ headers */
+  /** Directory inside the HAL repo containing HAL C++ headers */
   halDir: string;
   /** Baseline ref (tag or commit id) used for reuse statistics */
   baseline: string;
+  /** Optional per-kind baseline overrides (when SFR/HAL repos tag independently) */
+  sfrBaseline?: string;
+  halBaseline?: string;
   /** Reuse-rate drop (percent points) between consecutive tags that triggers a warning */
   warnThresholdPct: number;
 }

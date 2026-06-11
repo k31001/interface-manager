@@ -14,7 +14,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     let from = sp.get("from");
     let to = sp.get("to");
     if (!from || !to) {
-      const tags = await projectTags(p);
+      const tags = await projectTags(p, "hal");
       to = to || tags[tags.length - 1]?.name || "HEAD";
       const toIdx = tags.findIndex((t) => t.name === to);
       from = from || (toIdx > 0 ? tags[toIdx - 1].name : tags[0]?.name || "HEAD");

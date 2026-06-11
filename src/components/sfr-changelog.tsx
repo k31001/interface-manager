@@ -73,7 +73,7 @@ export function SfrChangelog({ project, projectName }: { project: string; projec
   const router = useRouter();
   const pathname = usePathname();
 
-  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags`);
+  const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=sfr`);
   const { data: stats } = useApi<StatsResult>(`/api/projects/${project}/sfr/stats`);
 
   const tags = tagsData?.tags ?? [];

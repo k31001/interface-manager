@@ -1,7 +1,7 @@
 import { cached } from "./cache";
 import { resolveRepoDir, revParse } from "./git";
 import { flattenModules, loadHal, loadSfr, resolveRef } from "./model";
-import { readConfig } from "./config";
+import { readConfig, repoFor } from "./config";
 import type { ProjectConfig, SearchHit } from "./types";
 
 interface IndexEntry extends SearchHit {
@@ -10,13 +10,14 @@ interface IndexEntry extends SearchHit {
 }
 
 async function buildProjectIndex(p: ProjectConfig): Promise<IndexEntry[]> {
-  const dir = await resolveRepoDir(p);
-  const ref = await resolveRef(p);
-  const sha = await revParse(dir, ref);
+  // SFR and HAL may live in separate repos with independent tags — resolve each
+  const [sfrDir, halDir] = await Promise.all([resolveRepoDir(repoFor(p, "sfr")), resolveRepoDir(repoFor(p, "hal"))]);
+  const [sfrRef, halRef] = await Promise.all([resolveRef(p, null, "sfr"), resolveRef(p, null, "hal")]);
+  const [sfrSha, halSha] = await Promise.all([revParse(sfrDir, sfrRef), revParse(halDir, halRef)]);
 
-  return cached(`searchidx:${dir}:${sha}`, async () => {
+  return cached(`searchidx:${sfrDir}:${sfrSha}:${halDir}:${halSha}`, async () => {
     const entries: IndexEntry[] = [];
-    const [sfr, hal] = await Promise.all([loadSfr(p, ref), loadHal(p, ref)]);
+    const [sfr, hal] = await Promise.all([loadSfr(p), loadHal(p)]);
 
     for (const { subsystem, ip, mod } of flattenModules(sfr)) {
       const modHref = `/${p.id}/sfr?sel=${encodeURIComponent(mod.path)}`;

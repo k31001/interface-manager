@@ -13,6 +13,7 @@ type ProjectStatus = ProjectConfig & {
   tagCount: number;
   latestTag: string | null;
   commitCount: number;
+  halStatus?: { repo: string; tagCount: number; latestTag: string | null } | null;
 };
 
 function Field({
@@ -156,9 +157,16 @@ export function SettingsView() {
                     <span className="text-sm font-bold">{p.name || p.id}</span>
                     {st &&
                       (st.status === "ok" ? (
-                        <Badge kind="added">
-                          ● connected · {st.tagCount} tags · {st.commitCount} commits · latest {st.latestTag}
-                        </Badge>
+                        <>
+                          <Badge kind="added">
+                            ● SFR · {st.tagCount} tags · latest {st.latestTag}
+                          </Badge>
+                          {st.halStatus && (
+                            <Badge kind="added">
+                              ● HAL · {st.halStatus.tagCount} tags · latest {st.halStatus.latestTag}
+                            </Badge>
+                          )}
+                        </>
                       ) : (
                         <Badge kind="removed">● {st.error}</Badge>
                       ))}
@@ -185,17 +193,41 @@ export function SettingsView() {
                     />
                     <div className="md:col-span-2">
                       <Field
-                        label="git repository"
+                        label="default git repository"
                         value={p.repo}
                         onChange={(v) => update(i, { repo: v })}
-                        hint="local path (relative to the app root) or remote URL — remote repos are cloned into data/cache and fetched on refresh"
+                        hint="local path (relative to the app root) or remote URL — used for SFR and HAL unless overridden below. Remote repos are cloned into data/cache and fetched on refresh."
                       />
                     </div>
+
+                    <div className="md:col-span-2 mt-1 flex items-center gap-2">
+                      <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase">SFR source · SystemRDL</span>
+                      <span className="h-px flex-1 bg-neutral-100" />
+                    </div>
+                    <Field
+                      label="sfr repository (optional override)"
+                      value={p.sfrRepo ?? ""}
+                      placeholder="(uses default repo)"
+                      onChange={(v) => update(i, { sfrRepo: v || undefined })}
+                      hint="leave blank to use the default repository"
+                    />
                     <Field
                       label="rdl directory"
                       value={p.rdlDir}
                       onChange={(v) => update(i, { rdlDir: v })}
                       hint="repo-relative; layout <system>/<subsystem>/<ip>/*.rdl"
+                    />
+
+                    <div className="md:col-span-2 mt-1 flex items-center gap-2">
+                      <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase">HAL source · C++ headers</span>
+                      <span className="h-px flex-1 bg-neutral-100" />
+                    </div>
+                    <Field
+                      label="hal repository (optional override)"
+                      value={p.halRepo ?? ""}
+                      placeholder="(uses default repo)"
+                      onChange={(v) => update(i, { halRepo: v || undefined })}
+                      hint="set when HAL lives in a separate git repository"
                     />
                     <Field
                       label="hal directory"
@@ -203,11 +235,23 @@ export function SettingsView() {
                       onChange={(v) => update(i, { halDir: v })}
                       hint="repo-relative; C++ headers with doxygen comments"
                     />
+
+                    <div className="md:col-span-2 mt-1 flex items-center gap-2">
+                      <span className="text-[10px] font-medium tracking-wider text-neutral-400 uppercase">Statistics</span>
+                      <span className="h-px flex-1 bg-neutral-100" />
+                    </div>
                     <Field
-                      label="statistics baseline"
+                      label="baseline"
                       value={p.baseline}
                       onChange={(v) => update(i, { baseline: v })}
                       hint="tag or commit id the reuse rate is measured against"
+                    />
+                    <Field
+                      label="hal baseline (optional)"
+                      value={p.halBaseline ?? ""}
+                      placeholder="(uses baseline)"
+                      onChange={(v) => update(i, { halBaseline: v || undefined })}
+                      hint="set when the HAL repo tags independently of SFR"
                     />
                     <Field
                       label="warning threshold (pp)"

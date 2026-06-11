@@ -1,6 +1,26 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
-import type { AppConfig, ProjectConfig } from "./types";
+import type { AppConfig, InterfaceKind, ProjectConfig } from "./types";
+
+/** The repo a given interface kind reads from (SFR/HAL may live in separate repos). */
+export function repoFor(p: ProjectConfig, kind: InterfaceKind): string {
+  return (kind === "sfr" ? p.sfrRepo : p.halRepo) || p.repo;
+}
+
+/** The directory inside that repo for the given kind. */
+export function dirFor(p: ProjectConfig, kind: InterfaceKind): string {
+  return kind === "sfr" ? p.rdlDir : p.halDir;
+}
+
+/** The statistics baseline ref for the given kind. */
+export function baselineFor(p: ProjectConfig, kind: InterfaceKind): string {
+  return (kind === "sfr" ? p.sfrBaseline : p.halBaseline) || p.baseline;
+}
+
+/** Distinct repos used by a project (deduped) — for refresh / status. */
+export function distinctRepos(p: ProjectConfig): string[] {
+  return [...new Set([p.repo, repoFor(p, "sfr"), repoFor(p, "hal")])];
+}
 
 const CONFIG_PATH = join(process.cwd(), "data", "config.json");
 

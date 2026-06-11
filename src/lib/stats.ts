@@ -1,7 +1,8 @@
-import { cached } from "./cache";
+import { diskCached } from "./cache";
+import { baselineFor, dirFor, repoFor } from "./config";
 import { diffHal, diffSfr, fieldFunctionallyEqual, regFunctionallyEqual } from "./diff";
 import { refDate, resolveRepoDir, revParse } from "./git";
-import { flattenModules, loadHal, loadSfr, projectTags } from "./model";
+import { type Progress, flattenModules, loadHal, loadSfr, projectTags } from "./model";
 import type {
   HalFn,
   HalModel,
@@ -30,13 +31,13 @@ function fnKeyMap(model: HalModel): Map<string, HalFn> {
   return map;
 }
 
-export async function computeSfrStats(p: ProjectConfig, baselineRef?: string): Promise<StatsResult> {
-  const dir = await resolveRepoDir(p);
-  const baseRef = baselineRef || p.baseline;
+export async function computeSfrStats(p: ProjectConfig, baselineRef?: string, onProgress?: Progress): Promise<StatsResult> {
+  const dir = await resolveRepoDir(repoFor(p, "sfr"));
+  const baseRef = baselineRef || baselineFor(p, "sfr");
   const baseSha = await revParse(dir, baseRef);
 
-  return cached(`sfrstats:${dir}:${baseSha}:${p.rdlDir}:${p.warnThresholdPct}`, async () => {
-    const tags = await projectTags(p);
+  return diskCached(`sfrstats:${dir}:${baseSha}:${dirFor(p, "sfr")}:${p.warnThresholdPct}`, async () => {
+    const tags = await projectTags(p, "sfr");
     const baseModel = await loadSfr(p, baseRef);
     const baseRegs = regKeyMap(baseModel);
     const baseDate = new Date(await refDate(dir, baseRef)).getTime();
@@ -46,9 +47,11 @@ export async function computeSfrStats(p: ProjectConfig, baselineRef?: string): P
     const warnings: StatsWarning[] = [];
     let prevModel: SfrModel | null = null;
 
-    for (const tag of tags) {
+    const relevant = tags.filter((t) => new Date(t.date).getTime() >= baseDate);
+    let ti = 0;
+    for (const tag of relevant) {
+      onProgress?.(++ti, relevant.length, tag.name);
       const tagDate = new Date(tag.date).getTime();
-      if (tagDate < baseDate) continue;
       const model = await loadSfr(p, tag.name);
       const curRegs = regKeyMap(model);
 
@@ -126,13 +129,13 @@ export async function computeSfrStats(p: ProjectConfig, baselineRef?: string): P
   });
 }
 
-export async function computeHalStats(p: ProjectConfig, baselineRef?: string): Promise<StatsResult> {
-  const dir = await resolveRepoDir(p);
-  const baseRef = baselineRef || p.baseline;
+export async function computeHalStats(p: ProjectConfig, baselineRef?: string, onProgress?: Progress): Promise<StatsResult> {
+  const dir = await resolveRepoDir(repoFor(p, "hal"));
+  const baseRef = baselineRef || baselineFor(p, "hal");
   const baseSha = await revParse(dir, baseRef);
 
-  return cached(`halstats:${dir}:${baseSha}:${p.halDir}:${p.warnThresholdPct}`, async () => {
-    const tags = await projectTags(p);
+  return diskCached(`halstats:${dir}:${baseSha}:${dirFor(p, "hal")}:${p.warnThresholdPct}`, async () => {
+    const tags = await projectTags(p, "hal");
     const baseModel = await loadHal(p, baseRef);
     const baseFns = fnKeyMap(baseModel);
     const baseDate = new Date(await refDate(dir, baseRef)).getTime();
@@ -141,9 +144,11 @@ export async function computeHalStats(p: ProjectConfig, baselineRef?: string): P
     const warnings: StatsWarning[] = [];
     let prevModel: HalModel | null = null;
 
-    for (const tag of tags) {
+    const relevant = tags.filter((t) => new Date(t.date).getTime() >= baseDate);
+    let ti = 0;
+    for (const tag of relevant) {
+      onProgress?.(++ti, relevant.length, tag.name);
       const tagDate = new Date(tag.date).getTime();
-      if (tagDate < baseDate) continue;
       const model = await loadHal(p, tag.name);
       const curFns = fnKeyMap(model);
 
