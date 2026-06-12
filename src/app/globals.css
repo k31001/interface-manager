@@ -161,6 +161,12 @@ body {
     left: 100%;
   }
 }
+/* contain the absolutely-positioned span below; without a positioning context
+   it resolves against the viewport and balloons into a full-screen bar that
+   sweeps across the page while data loads */
+.im-indeterminate {
+  position: relative;
+}
 .im-indeterminate > span {
   position: absolute;
   top: 0;
