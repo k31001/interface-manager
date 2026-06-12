@@ -72,6 +72,12 @@ export interface SfrReg {
   width: number; // regwidth in bits
   desc?: string;
   fields: SfrField[];
+  /** Set on registers produced by expanding an array instance (e.g. CH[8]).
+   *  arrayGroup = the instance base name, arrayIndex = which channel (0-based),
+   *  arrayCount = total channels. The viewer collapses a group to channel 0. */
+  arrayGroup?: string;
+  arrayIndex?: number;
+  arrayCount?: number;
 }
 
 export interface SfrModule {

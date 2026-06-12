@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { dedupeModelChannels } from "@/lib/channels";
 import { hex } from "@/lib/format";
 import type { TraceResult } from "@/lib/trace";
 import type { SfrIp, SfrModel, SfrModule, SfrSubsystem, SfrSystem, TagInfo } from "@/lib/types";
@@ -299,10 +300,12 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
   const [filter, setFilter] = useState("");
 
   const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=sfr`);
-  const { data: model, error, loading, progress } = useStream<SfrModel>(
+  const { data: rawModel, error, loading, progress } = useStream<SfrModel>(
     `/api/projects/${project}/sfr/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
   );
 
+  // collapse array-instanced register channels to one representative for display
+  const model = useMemo(() => (rawModel ? dedupeModelChannels(rawModel) : rawModel), [rawModel]);
   const flat = useMemo(() => (model ? flatten(model) : []), [model]);
 
   const setParams = (patch: Record<string, string | null>) => {

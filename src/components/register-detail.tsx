@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { accessStyle } from "@/lib/access";
+import { channelLabel } from "@/lib/channels";
 import { bitsLabel, hex } from "@/lib/format";
 import type { FnRef } from "@/lib/trace";
 import type { SfrField, SfrModule, SfrReg } from "@/lib/types";
@@ -174,7 +175,10 @@ export function RegisterCard({
   return (
     <Card className={cx("fade-up overflow-hidden", flash && "flash-ring")} >
       <div ref={ref} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-neutral-200 bg-neutral-50/60 px-4 py-2.5">
-        <span className="font-mono text-[14px] font-bold tracking-tight text-neutral-900">{reg.name}</span>
+        <span className="font-mono text-[14px] font-bold tracking-tight text-neutral-900">{channelLabel(reg)}</span>
+        {reg.arrayCount && (
+          <Badge kind="outline" className="text-[10px]">array ×{reg.arrayCount}</Badge>
+        )}
         {reg.dispName && reg.dispName !== reg.name && (
           <span className="text-xs text-neutral-500">{reg.dispName}</span>
         )}

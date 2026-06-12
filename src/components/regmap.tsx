@@ -2,6 +2,7 @@
 
 import { accessStyle, specialAccessTokens } from "@/lib/access";
 import { abbreviate } from "@/lib/abbrev";
+import { channelLabel } from "@/lib/channels";
 import { bitsLabel, hex } from "@/lib/format";
 import type { SfrField, SfrReg } from "@/lib/types";
 import { HoverTip, cx } from "./ui";
@@ -111,7 +112,7 @@ export function RegBitRow({
         {nameCell ?? (
           <span className="block">
             <span className="block truncate font-mono text-[11.5px] font-semibold text-neutral-900" title={reg.name}>
-              {reg.name}
+              {channelLabel(reg)}
             </span>
             <span className="block font-mono text-[9.5px] text-neutral-400">{hex(reg.offset, 4)}</span>
           </span>

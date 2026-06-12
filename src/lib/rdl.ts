@@ -810,6 +810,7 @@ function collectRegs(members: Member[], scope: Scope, base: number, defaultWidth
           name: count > 1 ? `${inst.name}_${k}` : inst.name,
           dispName: count > 1 && proto.dispName ? `${proto.dispName} ${k}` : proto.dispName,
           offset: base + start + k * stride,
+          ...(count > 1 && { arrayGroup: inst.name, arrayIndex: k, arrayCount: count }),
         };
         regs.push(reg);
       }
@@ -830,6 +831,7 @@ function collectRegs(members: Member[], scope: Scope, base: number, defaultWidth
             fields: r.fields.map((f) => ({ ...f })),
             name: prefix + r.name,
             offset: base + start + k * stride + r.offset,
+            ...(count > 1 && { arrayGroup: inst.name, arrayIndex: k, arrayCount: count }),
           });
         }
       }
