@@ -6,12 +6,12 @@ import { hex } from "@/lib/format";
 import type { TraceResult } from "@/lib/trace";
 import type { SfrIp, SfrModel, SfrModule, SfrSubsystem, SfrSystem, TagInfo } from "@/lib/types";
 import { useApi, useStream } from "@/lib/use-api";
-import { IconChevron, IconChip, IconDoc, IconFolder } from "./icons";
+import { IconChevron, IconDoc, IconFolder } from "./icons";
 import { AccessLegend, RegmapTable } from "./regmap";
 import { ModuleDetail } from "./register-detail";
 import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
-import { Badge, Card, ErrorBox, ProgressPanel, SectionLabel, Spinner, cx } from "./ui";
+import { Badge, Card, ErrorBox, ProgressPanel, Spinner, cx } from "./ui";
 
 type FlatMod = { system: string; subsystem: string; ip: string; mod: SfrModule };
 
@@ -53,10 +53,6 @@ function Tree({
     <div className="flex flex-col gap-0.5 text-[12.5px]">
       {model.systems.map((sys: SfrSystem) => (
         <div key={sys.name}>
-          <div className="flex items-center gap-1.5 px-2 py-1.5 font-mono text-[10.5px] font-semibold tracking-wider text-neutral-400 uppercase">
-            <IconChip size={12} />
-            {sys.name}
-          </div>
           {sys.subsystems.map((sub: SfrSubsystem) => {
             const subId = `${sys.name}/${sub.name}`;
             const subCollapsed = collapsed.has(subId) && !f;
@@ -158,7 +154,6 @@ function OverviewCards({ model, onSelect }: { model: SfrModel; onSelect: (sel: s
     <div className="fade-up flex flex-col gap-6">
       {model.systems.map((sys) => (
         <div key={sys.name}>
-          <SectionLabel className="mb-2">system · {sys.name}</SectionLabel>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {sys.subsystems.map((sub) => (
               <Card key={sub.name} hover className="p-4">
@@ -216,7 +211,7 @@ function IpRegmap({
       <div className="flex flex-wrap items-baseline gap-3">
         <h2 className="font-mono text-lg font-bold tracking-tight">{ip.name}</h2>
         <span className="text-xs text-neutral-400">
-          {sysName} / {subName}
+          {subName}
         </span>
         <span className="ml-auto flex gap-2">
           <Badge kind="outline">{ip.modules.length} modules</Badge>
