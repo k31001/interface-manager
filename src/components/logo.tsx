@@ -8,7 +8,7 @@ import { cx } from "./ui";
 export function Logo({ className }: { className?: string }) {
   return (
     <span className={cx("im-logo inline-grid place-items-center", className)}>
-      <svg viewBox="0 0 40 40" fill="none" className="h-full w-full" aria-hidden>
+      <svg viewBox="0 0 40 40" width={40} height={40} fill="none" className="h-full w-full" aria-hidden>
         {/* bond-out pins */}
         <g className="im-pins" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
           <path d="M14 3.5v4M26 3.5v4" />
