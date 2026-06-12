@@ -1,5 +1,6 @@
 import { ndjsonStream } from "@/lib/api";
-import { requireProject } from "@/lib/config";
+import { repoFor, requireProject } from "@/lib/config";
+import { resolveRepoDir } from "@/lib/git";
 import { computeSfrStats } from "@/lib/stats";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const baseline = new URL(req.url).searchParams.get("baseline") ?? undefined;
   return ndjsonStream(async (emit) => {
     const p = requireProject(id);
+    await resolveRepoDir(repoFor(p, "sfr"), { onClone: () => emit({ type: "phase", phase: "clone", label: "cloning repository (first load)…" }) });
     emit({ type: "phase", phase: "loading", label: "computing reuse statistics" });
     return computeSfrStats(p, baseline, (done, total, label) =>
       emit({ type: "progress", phase: "tags", done, total, label: `tag ${label}` })

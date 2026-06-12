@@ -23,11 +23,12 @@ function isRemoteUrl(repo: string): boolean {
  * Remote URLs are cloned (bare) into data/cache, keyed on the URL so a project
  * that points SFR and HAL at the same repo only clones it once. Fetched on refresh.
  */
-export async function resolveRepoDir(repo: string, opts?: { fetch?: boolean }): Promise<string> {
+export async function resolveRepoDir(repo: string, opts?: { fetch?: boolean; onClone?: () => void }): Promise<string> {
   if (isRemoteUrl(repo)) {
     const hash = createHash("sha1").update(repo).digest("hex").slice(0, 12);
     const dir = join(process.cwd(), "data", "cache", `${hash}.git`);
     if (!existsSync(dir)) {
+      opts?.onClone?.(); // first load: signal the (potentially slow) network clone
       mkdirSync(join(process.cwd(), "data", "cache"), { recursive: true });
       await run("git", ["clone", "--bare", repo, dir], { maxBuffer: 64 * 1024 * 1024 });
     } else if (opts?.fetch) {

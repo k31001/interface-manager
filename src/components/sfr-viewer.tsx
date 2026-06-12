@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { hex } from "@/lib/format";
+import type { TraceResult } from "@/lib/trace";
 import type { SfrIp, SfrModel, SfrModule, SfrSubsystem, SfrSystem, TagInfo } from "@/lib/types";
 import { useApi, useStream } from "@/lib/use-api";
 import { IconChevron, IconChip, IconDoc, IconFolder } from "./icons";
@@ -259,6 +260,7 @@ function ModuleView({
   project: string;
   tag?: string | null;
 }) {
+  const { data: trace } = useApi<TraceResult>(`/api/projects/${project}/trace${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`);
   const entry = flat.find((x) => x.mod.path === path);
   if (!entry) return <ErrorBox message={`Module not found at this tag: ${path}`} />;
   const { system, subsystem, ip, mod } = entry;
@@ -283,7 +285,7 @@ function ModuleView({
         </span>
       </div>
       {mod.desc && <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-neutral-500">{mod.desc}</p>}
-      <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} traceRef={tag} />
+      <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} regUsedBy={trace?.regUsedBy} />
     </div>
   );
 }

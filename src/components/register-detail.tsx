@@ -4,9 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { accessStyle } from "@/lib/access";
 import { bitsLabel, hex } from "@/lib/format";
-import type { TraceResult } from "@/lib/trace";
+import type { FnRef } from "@/lib/trace";
 import type { SfrField, SfrModule, SfrReg } from "@/lib/types";
-import { useApi } from "@/lib/use-api";
 import { IconCode, IconFn, IconPulse } from "./icons";
 import { AccessLegend, BitHeaderRow, RegBitRow } from "./regmap";
 import { Badge, Btn, Card, cx } from "./ui";
@@ -19,11 +18,8 @@ const fnAccessColor: Record<string, string> = {
 };
 
 /** HAL functions that touch this register, derived from the .c implementation */
-function UsedBy({ project, ip, reg, traceRef }: { project: string; ip: string; reg: string; traceRef?: string | null }) {
+function UsedBy({ project, used }: { project: string; used: FnRef[] }) {
   const router = useRouter();
-  const { data: trace } = useApi<TraceResult>(`/api/projects/${project}/trace${traceRef ? `?ref=${encodeURIComponent(traceRef)}` : ""}`);
-  const used = trace?.regUsedBy[`${ip}::${reg}`];
-  if (!used || !used.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-100 px-4 py-2">
       <span className="inline-flex items-center gap-1 font-mono text-[10px] tracking-wider text-neutral-400 uppercase">
@@ -153,18 +149,19 @@ export function RegisterCard({
   flash,
   project,
   modulePath,
-  traceRef,
+  regUsedBy,
 }: {
   reg: SfrReg;
   highlightField?: string | null;
   flash?: boolean;
   project?: string;
   modulePath?: string;
-  traceRef?: string | null;
+  regUsedBy?: Record<string, FnRef[]>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [panel, setPanel] = useState<"decode" | "history" | null>(null);
   const ip = modulePath?.split("/").at(-2);
+  const used = ip ? regUsedBy?.[`${ip}::${reg.name}`] : undefined;
   useEffect(() => {
     if (flash && ref.current) {
       ref.current.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -198,7 +195,7 @@ export function RegisterCard({
 
       {panel === "decode" && <RegisterDecoder reg={reg} />}
       {panel === "history" && project && modulePath && <RegHistory project={project} modulePath={modulePath} reg={reg.name} />}
-      {project && ip && <UsedBy project={project} ip={ip} reg={reg.name} traceRef={traceRef} />}
+      {project && used && used.length > 0 && <UsedBy project={project} used={used} />}
 
       {reg.desc && <p className="px-4 pt-2.5 text-xs leading-relaxed text-neutral-500">{reg.desc}</p>}
 
@@ -273,13 +270,13 @@ export function ModuleDetail({
   highlightReg,
   highlightField,
   project,
-  traceRef,
+  regUsedBy,
 }: {
   mod: SfrModule;
   highlightReg?: string | null;
   highlightField?: string | null;
   project?: string;
-  traceRef?: string | null;
+  regUsedBy?: Record<string, FnRef[]>;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -291,7 +288,7 @@ export function ModuleDetail({
           highlightField={highlightReg === reg.name ? highlightField : null}
           project={project}
           modulePath={mod.path}
-          traceRef={traceRef}
+          regUsedBy={regUsedBy}
         />
       ))}
     </div>
