@@ -24,14 +24,23 @@ export function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
 const PARSED_DIR = join(process.cwd(), "data", "cache", "parsed");
 
 /**
+ * Bump when the shape or computation of any disk-cached value changes (e.g. the
+ * RDL parser starts emitting new fields). Cache keys are otherwise content-
+ * addressed (git sha), not code-addressed, so without this a model parsed by an
+ * older build would be served stale after a parser change.
+ */
+const CACHE_VERSION = "v2";
+
+/**
  * Memory + disk cache for JSON-serializable results keyed by a content-addressed
- * key (it must include the git sha). Survives process restarts, so re-opening a
- * tag/baseline that was parsed before is instant. Keys are content (sha) based,
- * so stale entries are never returned — the cache directory is disposable.
+ * key (it must include the git sha) plus CACHE_VERSION. Survives process
+ * restarts, so re-opening a tag/baseline that was parsed before is instant.
+ * The cache directory is disposable.
  */
 export function diskCached<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  return cached(key, async () => {
-    const file = join(PARSED_DIR, createHash("sha1").update(key).digest("hex") + ".json");
+  const vkey = `${CACHE_VERSION}:${key}`;
+  return cached(vkey, async () => {
+    const file = join(PARSED_DIR, createHash("sha1").update(vkey).digest("hex") + ".json");
     if (existsSync(file)) {
       try {
         return JSON.parse(readFileSync(file, "utf-8")) as T;
