@@ -46,30 +46,28 @@ export async function loadSfr(p: ProjectConfig, refInput?: string | null, onProg
       return { file: f, mod: parseRdl(contents.get(f) ?? "", f) };
     });
 
-    // hierarchy from path: <rdlDir>/<system>/<subsystem>/<ip>/<file>.rdl
-    const systems = new Map<string, Map<string, Map<string, SfrModule[]>>>();
+    // hierarchy from path under rdlDir: <subsystem>/<ip>/<file>.rdl
+    // subsystems live directly under the configured dir; the SoC itself is the
+    // single system, named after the project.
+    const subsystems = new Map<string, Map<string, SfrModule[]>>();
     const prefix = rdlDir.replace(/\/+$/, "") + "/";
     for (const { file, mod } of modules) {
       const rel = file.startsWith(prefix) ? file.slice(prefix.length) : file;
       const parts = rel.split("/");
-      const [sys, subsys, ip] = [
-        parts[0] ?? "system",
-        parts.length > 2 ? parts[1] : "common",
-        parts.length > 3 ? parts[2] : parts[parts.length - 2] ?? "misc",
+      const [subsys, ip] = [
+        parts.length > 1 ? parts[0] : "common",
+        parts.length > 2 ? parts[1] : parts[parts.length - 2] ?? "misc",
       ];
-      if (!systems.has(sys)) systems.set(sys, new Map());
-      const subs = systems.get(sys)!;
-      if (!subs.has(subsys)) subs.set(subsys, new Map());
-      const ips = subs.get(subsys)!;
+      if (!subsystems.has(subsys)) subsystems.set(subsys, new Map());
+      const ips = subsystems.get(subsys)!;
       if (!ips.has(ip)) ips.set(ip, []);
       ips.get(ip)!.push(mod);
     }
 
-    const sysArr: SfrSystem[] = [...systems.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([sysName, subs]) => ({
-        name: sysName,
-        subsystems: [...subs.entries()]
+    const sysArr: SfrSystem[] = [
+      {
+        name: p.name,
+        subsystems: [...subsystems.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(
             ([subName, ips]): SfrSubsystem => ({
@@ -82,7 +80,8 @@ export async function loadSfr(p: ProjectConfig, refInput?: string | null, onProg
                 })),
             })
           ),
-      }));
+      },
+    ];
 
     let regs = 0;
     let fields = 0;
