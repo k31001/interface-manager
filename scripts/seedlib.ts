@@ -51,12 +51,21 @@ interface RReg {
   stride?: number; // byte stride between array elements (defaults to 4)
   baseline: boolean;
 }
+interface RRegfile {
+  name: string;
+  base: number;
+  array: number;
+  stride: number;
+  desc: string;
+  regs: RReg[];
+}
 interface RModule {
   file: string; // file name e.g. uart-common.rdl
   addrmap: string;
   dispName: string;
   desc: string;
   regs: RReg[];
+  regfiles?: RRegfile[]; // regfile-array instances, excluded from reuse mutations
 }
 interface RIp {
   name: string;
@@ -135,6 +144,24 @@ export const r = (name: string, offset: number, dispName: string, desc: string, 
   ...opts,
 });
 
+/** A regfile instantiated as an array: regfile { <regs> } NAME[array] @ base += stride. */
+export interface RegfileSpec {
+  name: string;
+  base: number; // base offset of the array
+  array: number; // instance count
+  stride: number; // byte stride between instances
+  desc: string;
+  regs: RegSpec[]; // registers inside each instance (offsets relative to the instance)
+}
+export const rf = (name: string, base: number, array: number, stride: number, desc: string, regs: RegSpec[]): RegfileSpec => ({
+  name,
+  base,
+  array,
+  stride,
+  desc,
+  regs,
+});
+
 function buildReg(spec: RegSpec, offset: number): RReg {
   let cursor = 0;
   const fields: RField[] = spec.fields.map((fs) => {
@@ -196,7 +223,7 @@ function buildFn(spec: FnSpec): RFn {
 // ---------------------------------------------------------------- IP library (SFR)
 
 export type IpDef = {
-  modules: { file: string; addrmap: string; dispName: string; desc: string; regs: RegSpec[] }[];
+  modules: { file: string; addrmap: string; dispName: string; desc: string; regs: RegSpec[]; regfiles?: RegfileSpec[] }[];
   fieldPool: FieldSpec[];
   regPool: RegSpec[];
 };
@@ -790,6 +817,16 @@ export const IP_LIB: Record<string, () => IpDef> = {
             f("REQ", 1, "Request context suspend."),
             f("ACK", 1, "Suspend acknowledged.", { sw: "r", hw: "w" }),
             f("CTX_SLOT", 2, "Context save slot.", { at: 4 }),
+          ]),
+        ],
+        regfiles: [
+          rf("CTX", 0x40, 4, 0x10, "Saved cipher-context slots — IV and key handle per preemptible context (see SUSPEND.CTX_SLOT).", [
+            r("IV_LO", 0x0, "IV Low", "Low 32 bits of the saved initialization vector.", [f("VAL", 32, "IV[31:0].")]),
+            r("IV_HI", 0x4, "IV High", "High 32 bits of the saved initialization vector.", [f("VAL", 32, "IV[63:32].")]),
+            r("META", 0x8, "Context Meta", "Saved context metadata.", [
+              f("KEY_SLOT", 3, "Key-ladder slot bound to this context."),
+              f("VALID", 1, "Context slot holds a live context.", { at: 4, sw: "r", hw: "w" }),
+            ]),
           ]),
         ],
       },
@@ -1484,6 +1521,26 @@ function serializeRdl(mod: RModule, system: string): string {
         : `${reg.name} @ ${hex(reg.offset, 4)}`;
     L.push(`    } ${inst};`);
   }
+  for (const rfv of mod.regfiles ?? []) {
+    L.push("");
+    L.push(`    regfile {`);
+    for (const reg of [...rfv.regs].sort((a, b) => a.offset - b.offset)) {
+      L.push("");
+      L.push(`        reg {`);
+      L.push(`            name = "${reg.dispName}";`);
+      L.push(`            desc = "${reg.desc}";`);
+      for (const fl of [...reg.fields].sort((a, b) => a.lsb - b.lsb)) {
+        L.push("");
+        L.push(`            field {`);
+        L.push(`                desc = "${fl.desc}";`);
+        L.push(`                sw = ${fl.sw};`);
+        L.push(`                hw = ${fl.hw};`);
+        L.push(`            } ${fl.name}[${fl.lsb + fl.width - 1}:${fl.lsb}] = ${hex(fl.reset)};`);
+      }
+      L.push(`        } ${reg.name} @ ${hex(reg.offset, 4)};`);
+    }
+    L.push(`    } ${rfv.name}[${rfv.array}] @ ${hex(rfv.base, 4)} += ${hex(rfv.stride)};`);
+  }
   L.push(`};`);
   L.push("");
   return L.join("\n");
@@ -2155,6 +2212,14 @@ function buildModel(plan: ProjectPlan, ipLib: IpLib, halLib: HalLib): ProjectMod
           dispName: ms.dispName,
           desc: ms.desc,
           regs: ms.regs.map((rs) => buildReg(rs, rs.offset!)),
+          regfiles: ms.regfiles?.map((rfs) => ({
+            name: rfs.name,
+            base: rfs.base,
+            array: rfs.array,
+            stride: rfs.stride,
+            desc: rfs.desc,
+            regs: rfs.regs.map((rs) => buildReg(rs, rs.offset!)),
+          })),
         })),
         fieldPool: [...def.fieldPool],
         regPool: [...def.regPool],
