@@ -31,7 +31,16 @@ export async function resolveRepoDir(repo: string, opts?: { fetch?: boolean }): 
       mkdirSync(join(process.cwd(), "data", "cache"), { recursive: true });
       await run("git", ["clone", "--bare", repo, dir], { maxBuffer: 64 * 1024 * 1024 });
     } else if (opts?.fetch) {
-      await git(dir, ["fetch", "--tags", "--force", "origin"]);
+      // bare clones have no fetch refspec, so force-sync all heads + tags explicitly.
+      // This also picks up rewritten history (e.g. a force-push), not just new tags.
+      await git(dir, [
+        "fetch",
+        "--prune",
+        "--force",
+        "origin",
+        "+refs/heads/*:refs/heads/*",
+        "+refs/tags/*:refs/tags/*",
+      ]);
     }
     return dir;
   }
