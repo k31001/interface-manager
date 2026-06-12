@@ -114,6 +114,7 @@ export function SettingsView() {
         repo: "data/repos/…  or  https://git.example.com/soc/project.git",
         rdlDir: "rdl",
         halDir: "hal/include",
+        halSrcDir: "hal/src",
         baseline: "v0.1.0",
         warnThresholdPct: 4,
       },
@@ -234,6 +235,13 @@ export function SettingsView() {
                       value={p.halDir}
                       onChange={(v) => update(i, { halDir: v })}
                       hint="repo-relative; C++ headers with doxygen comments"
+                    />
+                    <Field
+                      label="hal source directory (optional)"
+                      value={p.halSrcDir ?? ""}
+                      placeholder="(scans whole repo)"
+                      onChange={(v) => update(i, { halSrcDir: v || undefined })}
+                      hint="repo-relative; .c/.cpp implementation sources for SFR↔HAL traceability"
                     />
 
                     <div className="md:col-span-2 mt-1 flex items-center gap-2">

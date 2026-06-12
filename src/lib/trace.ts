@@ -32,7 +32,8 @@ export async function loadTrace(p: ProjectConfig, refInput?: string | null): Pro
   const sha = await revParse(dir, ref);
   const sfr = await loadSfr(p, refInput);
 
-  return diskCached(`trace:${dir}:${sha}:${sfr.sha}`, async () => {
+  const srcDir = p.halSrcDir ?? "";
+  return diskCached(`trace:${dir}:${sha}:${sfr.sha}:${srcDir}`, async () => {
     // IP register sets keyed by UPPERCASE name (the pointer alias the impl uses)
     const ipsByPtr = new Map<string, IpRegs>();
     for (const { ip, mod } of flattenModules(sfr)) {
@@ -48,9 +49,11 @@ export async function loadTrace(p: ProjectConfig, refInput?: string | null): Pro
       }
     }
 
+    // implementation sources live under halSrcDir when configured; otherwise
+    // fall back to a repo-wide scan (subDir "")
     const files = [
-      ...(await listFilesAt(dir, sha, "", ".c")),
-      ...(await listFilesAt(dir, sha, "", ".cpp")),
+      ...(await listFilesAt(dir, sha, srcDir, ".c")),
+      ...(await listFilesAt(dir, sha, srcDir, ".cpp")),
     ];
     const contents = await readFilesAt(dir, sha, files);
 

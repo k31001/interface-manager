@@ -17,6 +17,9 @@ export interface ProjectConfig {
   rdlDir: string;
   /** Directory inside the HAL repo containing HAL C++ headers */
   halDir: string;
+  /** Directory inside the HAL repo containing HAL implementation sources (.c/.cpp),
+   *  scanned for SFR↔HAL traceability. Falls back to a repo-wide scan when unset. */
+  halSrcDir?: string;
   /** Baseline ref (tag or commit id) used for reuse statistics */
   baseline: string;
   /** Optional per-kind baseline overrides (when SFR/HAL repos tag independently) */

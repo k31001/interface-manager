@@ -8,6 +8,7 @@
       "repo": "https://github.com/k31001/helios-soc.git",
       "rdlDir": "rdl/helios",
       "halDir": "hal/include",
+      "halSrcDir": "hal/src",
       "baseline": "v0.1.0",
       "warnThresholdPct": 4
     },
@@ -19,6 +20,7 @@
       "repo": "https://github.com/k31001/selene-soc.git",
       "rdlDir": "rdl/selene",
       "halDir": "hal/include",
+      "halSrcDir": "hal/src",
       "baseline": "v0.1.0",
       "warnThresholdPct": 4
     },
@@ -30,6 +32,7 @@
       "repo": "https://github.com/k31001/pulsar-soc.git",
       "rdlDir": "rdl/pulsar",
       "halDir": "hal/include",
+      "halSrcDir": "hal/src",
       "baseline": "v0.1.0",
       "warnThresholdPct": 4
     }
