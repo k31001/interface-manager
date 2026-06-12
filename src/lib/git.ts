@@ -1,11 +1,40 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { isAbsolute, join } from "node:path";
 import type { CommitInfo, TagInfo } from "./types";
 
 const run = promisify(execFile);
+
+/**
+ * Dedupe concurrent cold clones of the same repo within this process. A cold SFR
+ * load fires several endpoints at once (stream, tags, trace) and each used to run
+ * its own `git clone` into the same dir, racing to "destination already exists".
+ * Callers now await one shared in-flight clone instead.
+ */
+const inflightClones = new Map<string, Promise<void>>();
+
+async function ensureBareClone(repo: string, dir: string, onClone?: () => void): Promise<boolean> {
+  if (existsSync(dir)) return false; // already cached
+  let p = inflightClones.get(dir);
+  if (!p) {
+    p = (async () => {
+      onClone?.(); // first load: signal the (potentially slow) network clone
+      mkdirSync(join(process.cwd(), "data", "cache"), { recursive: true });
+      // Clone into a temp dir and atomically rename on success, so an interrupted
+      // clone never leaves a half-populated dir that existsSync treats as complete.
+      const tmp = `${dir}.partial`;
+      rmSync(tmp, { recursive: true, force: true });
+      await run("git", ["clone", "--bare", repo, tmp], { maxBuffer: 64 * 1024 * 1024 });
+      renameSync(tmp, dir);
+    })();
+    inflightClones.set(dir, p);
+    p.finally(() => inflightClones.delete(dir)).catch(() => {});
+  }
+  await p;
+  return true;
+}
 
 async function git(repoDir: string, args: string[]): Promise<string> {
   const { stdout } = await run("git", ["-C", repoDir, ...args], {
@@ -27,11 +56,8 @@ export async function resolveRepoDir(repo: string, opts?: { fetch?: boolean; onC
   if (isRemoteUrl(repo)) {
     const hash = createHash("sha1").update(repo).digest("hex").slice(0, 12);
     const dir = join(process.cwd(), "data", "cache", `${hash}.git`);
-    if (!existsSync(dir)) {
-      opts?.onClone?.(); // first load: signal the (potentially slow) network clone
-      mkdirSync(join(process.cwd(), "data", "cache"), { recursive: true });
-      await run("git", ["clone", "--bare", repo, dir], { maxBuffer: 64 * 1024 * 1024 });
-    } else if (opts?.fetch) {
+    const freshlyCloned = await ensureBareClone(repo, dir, opts?.onClone);
+    if (!freshlyCloned && opts?.fetch) {
       // bare clones have no fetch refspec, so force-sync all heads + tags explicitly.
       // This also picks up rewritten history (e.g. a force-push), not just new tags.
       await git(dir, [
