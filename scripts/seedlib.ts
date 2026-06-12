@@ -47,6 +47,8 @@ interface RReg {
   offset: number;
   desc: string;
   fields: RField[];
+  array?: number; // instance count when this register is an array (NAME[array])
+  stride?: number; // byte stride between array elements (defaults to 4)
   baseline: boolean;
 }
 interface RModule {
@@ -113,6 +115,9 @@ export interface RegSpec {
   desc: string;
   sw?: string;
   hw?: string;
+  array?: number; // emit as an array instance NAME[array]
+  stride?: number; // byte stride between elements (defaults to 4)
+  baseline?: boolean; // false → excluded from reuse-degrading mutations (stays stable)
   fields: FieldSpec[];
 }
 export const f = (name: string, width: number, desc: string, opts: Partial<FieldSpec> = {}): FieldSpec => ({
@@ -146,7 +151,7 @@ function buildReg(spec: RegSpec, offset: number): RReg {
       baseline: true,
     };
   });
-  return { name: spec.name, dispName: spec.dispName, offset, desc: spec.desc, fields, baseline: true };
+  return { name: spec.name, dispName: spec.dispName, offset, desc: spec.desc, fields, array: spec.array, stride: spec.stride, baseline: spec.baseline ?? true };
 }
 
 export interface ParamSpec {
@@ -509,6 +514,9 @@ export const IP_LIB: Record<string, () => IpDef> = {
             f("ERR", 1, "Channel faulted."),
             f("REMAIN", 24, "Remaining bytes.", { at: 8 }),
           ], STATUS),
+          r("SG_DESC", 0x14, "SG Descriptor", "Scatter-gather descriptor table — one buffer pointer per slot.", [
+            f("ADDR", 32, "Buffer address for this descriptor slot."),
+          ], { array: 8, stride: 4, baseline: false }),
         ],
       },
     ],
@@ -1470,7 +1478,11 @@ function serializeRdl(mod: RModule, system: string): string {
       L.push(`            hw = ${fl.hw};`);
       L.push(`        } ${fl.name}[${fl.lsb + fl.width - 1}:${fl.lsb}] = ${hex(fl.reset)};`);
     }
-    L.push(`    } ${reg.name} @ ${hex(reg.offset, 4)};`);
+    const inst =
+      reg.array && reg.array > 1
+        ? `${reg.name}[${reg.array}] @ ${hex(reg.offset, 4)} += ${hex(reg.stride ?? 4)}`
+        : `${reg.name} @ ${hex(reg.offset, 4)}`;
+    L.push(`    } ${inst};`);
   }
   L.push(`};`);
   L.push("");
