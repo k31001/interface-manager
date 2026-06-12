@@ -20,10 +20,16 @@ function buildCells(reg: SfrReg): Cell[] {
   const fields = [...reg.fields].sort((a, b) => b.msb - a.msb);
   let bit = reg.width - 1;
   for (const f of fields) {
-    if (f.msb < bit) {
-      cells.push({ kind: "rsvd", span: bit - f.msb, msb: bit, lsb: f.msb + 1 });
+    // Guard against malformed registers: a field that overlaps already-placed
+    // bits (or sits entirely outside the register) would otherwise make the
+    // emitted spans exceed reg.width and warp the whole table. Skip it, and
+    // clamp a partially-overlapping field's top to the remaining width.
+    if (f.lsb > bit || f.lsb < 0) continue;
+    const msb = Math.min(f.msb, bit);
+    if (msb < bit) {
+      cells.push({ kind: "rsvd", span: bit - msb, msb: bit, lsb: msb + 1 });
     }
-    cells.push({ kind: "field", field: f, span: f.width });
+    cells.push({ kind: "field", field: f, span: msb - f.lsb + 1 });
     bit = f.lsb - 1;
   }
   if (bit >= 0) cells.push({ kind: "rsvd", span: bit + 1, msb: bit, lsb: 0 });

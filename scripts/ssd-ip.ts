@@ -83,7 +83,7 @@ export const SSD_IP_LIB: IpLib = {
             f("EN", 1, "Enable this completion queue."),
             f("IEN", 1, "Interrupts enabled for this queue.", { reset: 1 }),
             f("QID", 6, "Queue identifier.", { at: 4 }),
-            f("IV", 11, "Interrupt vector.", { at: 16 }),
+            f("IV", 6, "Interrupt vector.", { at: 10 }),
             f("DEPTH", 12, "Queue depth, zero-based.", { at: 16, reset: 0x0ff }),
           ]),
           r("SQ_TAIL", 0x08, "SQ Tail Doorbell", "Submission queue tail doorbell.", [
