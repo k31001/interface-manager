@@ -124,6 +124,9 @@ export function Sidebar({ projects, onOpenSearch }: { projects: ProjectMeta[]; o
         <NavLink href="/compare" active={pathname === "/compare"} icon={<IconCompare size={15} />}>
           Project Compare
         </NavLink>
+        <NavLink href="/ip-diff" active={pathname === "/ip-diff"} icon={<IconChip size={15} />}>
+          IP Compare
+        </NavLink>
       </nav>
 
       <div className="border-t border-neutral-200 px-3 py-3">

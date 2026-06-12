@@ -1523,6 +1523,99 @@ function serializeHal(file: RHalFile, ns: string, project: string): string {
   return L.join("\n");
 }
 
+// ---------------------------------------------------------------- HAL .c impl
+
+/** pick the registers a function touches, from the IP's current register names */
+function assignRegs(fnName: string, regs: string[]): { reg: string; write: boolean }[] {
+  if (!regs.length) return [];
+  const find = (...kw: string[]) => regs.find((r) => kw.some((k) => r.toUpperCase().includes(k)));
+  const CTRL = find("CTRL", "CFG", "CONFIG") ?? regs[0];
+  const STAT = find("STAT", "STATUS") ?? CTRL;
+  const out: { reg: string; write: boolean }[] = [];
+  const w = (r?: string) => r && out.push({ reg: r, write: true });
+  const rd = (r?: string) => r && out.push({ reg: r, write: false });
+  const n = fnName;
+
+  if (/^(Init|Configure|Setup|Reset|Enable|Start|Calibrate|Reconfigure)/.test(n)) {
+    w(CTRL);
+    w(find("TIMING", "DIV", "MODE", "BAUD", "PERIOD", "MR_", "CLK"));
+  } else if (/^(Deinit|Disable|Stop|Halt|Suspend|Abort)/.test(n)) {
+    w(CTRL);
+  } else if (/Interrupt|Irq|ClearError|ClearAlarm|^Clear|^Ack|^Kick|HealthTest|Health/.test(n)) {
+    w(find("INT_STAT", "INT_EN", "KICK", "WAKE_STAT") ?? STAT);
+  } else if (/^(GetStatus|GetState|GetChannelStatus|GetLinkStatus|ReadStatus)/.test(n)) {
+    rd(STAT);
+  } else if (/^(Send|Write|Transmit|Transfer|Program|Encrypt|Decrypt|Update|Final|Digest|MasterWrite|Push)/.test(n)) {
+    w(find("DATA", "WDATA", "DATA_IN", "TX", "DOUT", "CH_") ?? CTRL);
+    rd(STAT);
+  } else if (/^(Receive|Recv|Read|MasterRead|GetRandom|Sample|Capture|GetValue|GetTemperature|GetTime|Probe|GetTransferCount|GetFreeBlocks)/.test(n)) {
+    rd(find("DATA", "RDATA", "DATA_OUT", "RX", "VALUE", "VAL", "TEMP", "TIME") ?? STAT);
+    rd(STAT);
+  } else if (/^Set/.test(n)) {
+    const x = n.replace(/^Set/, "").toUpperCase();
+    w(regs.find((r) => x.includes(r.toUpperCase().split("_")[0]) || r.toUpperCase().includes(x.slice(0, 4))) ?? CTRL);
+  } else if (/^(LoadKey|SetKey|Lock|LockRegion|BindLockingRange|CryptoErase|SetLockState)/.test(n)) {
+    w(find("KEY_CTRL", "LOCK", "CTRL") ?? CTRL);
+  } else {
+    w(CTRL);
+  }
+  // dedupe by reg name (prefer write)
+  const m = new Map<string, boolean>();
+  for (const e of out) m.set(e.reg, (m.get(e.reg) ?? false) || e.write);
+  return [...m.entries()].map(([reg, write]) => ({ reg, write }));
+}
+
+function defaultReturn(ret: string): string | null {
+  if (ret === "void") return null;
+  if (ret === "HalStatus") return "HalStatus::Ok";
+  if (ret === "bool") return "false";
+  if (/^(u?int\d*_t|size_t|long|short|int|uint\d+|unsigned)/.test(ret)) return "0";
+  return "{}";
+}
+
+function serializeHalImpl(file: RHalFile, ip: RIp, ns: string, project: string): string {
+  const fname = file.file.split("/").pop()!.replace(/\.h$/, ".c");
+  const ptr = ip.name.toUpperCase();
+  const regNames = ip.modules.flatMap((mod) => mod.regs.map((r) => r.name));
+  const L: string[] = [];
+  L.push(`// ${fname} — ${file.brief} (implementation)`);
+  L.push(`// ${project} SoC HAL — generated reference implementation`);
+  L.push("");
+  L.push(`#include "${file.file.split("/").pop()}"`);
+  L.push(`#include "${ip.name}_regs.h"   // ${ptr} register block`);
+  L.push("");
+  L.push(`namespace ${ns}::hal {`);
+
+  for (const cls of file.classes) {
+    for (const fnv of cls.fns) {
+      const ps = fnv.params.map((q) => `${q.type} ${q.name}`).join(", ");
+      L.push("");
+      L.push(`${fnv.ret} ${cls.name}::${fnv.name}(${ps})${fnv.isConst ? " const" : ""} {`);
+      const touched = assignRegs(fnv.name, regNames);
+      const writes = touched.filter((t) => t.write);
+      const reads = touched.filter((t) => !t.write);
+      // pure getter: return the read value directly
+      const ret = defaultReturn(fnv.ret);
+      if (!writes.length && reads.length === 1 && fnv.ret !== "void" && fnv.ret !== "HalStatus") {
+        L.push(`    return (${fnv.ret})(${ptr}->${reads[0].reg});`);
+      } else {
+        for (const wr of writes) L.push(`    ${ptr}->${wr.reg} = ${fnv.params[0] ? "static_cast<uint32_t>(" + fnv.params[0].name + ")" : "0u"};`);
+        if (reads.length) {
+          L.push(`    uint32_t _s = 0u;`);
+          for (const r of reads) L.push(`    _s |= ${ptr}->${r.reg};`);
+          L.push(`    (void)_s;`);
+        }
+        if (ret) L.push(`    return ${ret};`);
+      }
+      L.push(`}`);
+    }
+  }
+  L.push("");
+  L.push(`}  // namespace ${ns}::hal`);
+  L.push("");
+  return L.join("\n");
+}
+
 export type HalTypesFn = (ns: string, project: string) => string;
 
 export const DEFAULT_HAL_TYPES: HalTypesFn = (ns: string, project: string) => `// hal_types.h — shared HAL types
@@ -2085,6 +2178,9 @@ function writeAll(repo: Repo, m: ProjectModel) {
   }
   for (const file of m.hal) {
     repo.write(`hal/include/${file.file}`, serializeHal(file, m.ns, m.name));
+    // reference implementation (.c) — used by the SFR↔HAL traceability scanner
+    const ip = m.ips.find((x) => x.name === file.ip);
+    if (ip) repo.write(`hal/src/${file.file.replace(/\.h$/, ".c")}`, serializeHalImpl(file, ip, m.ns, m.name));
   }
   repo.write(`hal/include/common/hal_types.h`, m.halTypes(m.ns, m.name));
 }

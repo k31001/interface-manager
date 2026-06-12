@@ -2,12 +2,46 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { RegRef } from "@/lib/hal-impl";
+import type { TraceResult } from "@/lib/trace";
 import type { HalClass, HalFile, HalFn, HalModel, TagInfo } from "@/lib/types";
 import { useApi, useStream } from "@/lib/use-api";
-import { IconDoc, IconFn, IconFolder } from "./icons";
+import { IconChip, IconDoc, IconFn, IconFolder } from "./icons";
 import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
 import { Badge, Card, ErrorBox, ProgressPanel, SectionLabel, Spinner, cx } from "./ui";
+
+const accessBadge: Record<string, string> = {
+  w: "bg-amber-50 text-amber-700 border-amber-200",
+  r: "bg-sky-50 text-sky-700 border-sky-200",
+  rw: "bg-violet-50 text-violet-700 border-violet-200",
+};
+
+/** registers a HAL function touches, derived from the .c implementation */
+function RegisterAccesses({ accesses, onOpen }: { accesses: RegRef[]; onOpen: (a: RegRef) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-md bg-neutral-50 px-3 py-2">
+      <span className="inline-flex items-center gap-1 font-mono text-[10px] tracking-wider text-neutral-400 uppercase">
+        <IconChip size={12} /> accesses
+      </span>
+      {accesses.map((a) => (
+        <button
+          key={`${a.ip}:${a.reg}`}
+          onClick={() => onOpen(a)}
+          title={`${a.ip} / ${a.reg} — open in SFR map`}
+          className={cx(
+            "inline-flex cursor-pointer items-center gap-1 rounded border px-1.5 py-px font-mono text-[10.5px] transition-colors hover:brightness-95",
+            accessBadge[a.access] ?? accessBadge.r
+          )}
+        >
+          {a.reg}
+          <span className="opacity-60">{a.access}</span>
+        </button>
+      ))}
+      <span className="ml-auto font-mono text-[9.5px] text-neutral-300">from impl</span>
+    </div>
+  );
+}
 
 // ---------- signature rendering ----------
 
@@ -33,7 +67,21 @@ export function Signature({ fn, compact }: { fn: HalFn; compact?: boolean }) {
   );
 }
 
-export function FunctionCard({ cls, fn, flash, anchorId }: { cls: string; fn: HalFn; flash?: boolean; anchorId: string }) {
+export function FunctionCard({
+  cls,
+  fn,
+  flash,
+  anchorId,
+  accesses,
+  onOpenReg,
+}: {
+  cls: string;
+  fn: HalFn;
+  flash?: boolean;
+  anchorId: string;
+  accesses?: RegRef[];
+  onOpenReg?: (a: RegRef) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (flash) ref.current?.scrollIntoView({ block: "center" });
@@ -52,6 +100,7 @@ export function FunctionCard({ cls, fn, flash, anchorId }: { cls: string; fn: Ha
       </div>
       <div className="flex flex-col gap-2.5 px-4 py-3">
         {fn.brief && <p className="text-xs leading-relaxed text-neutral-700">{fn.brief}</p>}
+        {accesses && accesses.length > 0 && onOpenReg && <RegisterAccesses accesses={accesses} onOpen={onOpenReg} />}
         {fn.deprecated && (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11.5px] text-red-700">
             <span className="font-semibold">Deprecated.</span> {fn.deprecated}
@@ -155,7 +204,19 @@ function HalTree({ model, sel, onSelect, filter }: { model: HalModel; sel?: stri
 
 // ---------- class doc ----------
 
-function ClassDoc({ cls, fnFilter, highlightFn }: { cls: HalClass; fnFilter: string; highlightFn?: string | null }) {
+function ClassDoc({
+  cls,
+  fnFilter,
+  highlightFn,
+  trace,
+  onOpenReg,
+}: {
+  cls: HalClass;
+  fnFilter: string;
+  highlightFn?: string | null;
+  trace?: TraceResult;
+  onOpenReg?: (a: RegRef) => void;
+}) {
   const f = fnFilter.trim().toLowerCase();
   const fns = cls.fns.filter((x) => !f || x.name.toLowerCase().includes(f) || (x.brief ?? "").toLowerCase().includes(f));
   return (
@@ -177,6 +238,8 @@ function ClassDoc({ cls, fnFilter, highlightFn }: { cls: HalClass; fnFilter: str
           fn={x}
           anchorId={`fn-${cls.name}-${x.name}`}
           flash={highlightFn === `${cls.name}::${x.name}`}
+          accesses={trace?.fnTouches[`${cls.name}::${x.name}`]}
+          onOpenReg={onOpenReg}
         />
       ))}
     </div>
@@ -200,6 +263,11 @@ export function HalViewer({ project, projectName }: { project: string; projectNa
   const { data: model, error, loading, progress } = useStream<HalModel>(
     `/api/projects/${project}/hal/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
   );
+  const { data: trace } = useApi<TraceResult>(`/api/projects/${project}/trace${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`);
+
+  const openReg = (a: RegRef) => {
+    if (a.modulePath) router.push(`/${project}/sfr?sel=${encodeURIComponent(a.modulePath)}&reg=${encodeURIComponent(a.reg)}`);
+  };
 
   const setParams = (patch: Record<string, string | null>) => {
     const q = new URLSearchParams(sp.toString());
@@ -210,7 +278,11 @@ export function HalViewer({ project, projectName }: { project: string; projectNa
     router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   };
 
-  const selFile = model?.files.find((x) => x.rel === file);
+  // resolve the file from `file`, or fall back to the file containing the linked `fn`'s class
+  const fnClass = fnSel?.split("::")[0];
+  const selFile =
+    model?.files.find((x) => x.rel === file) ??
+    (fnClass ? model?.files.find((x) => x.classes.some((c) => c.name === fnClass)) : undefined);
 
   return (
     <div className="flex h-full flex-col">
@@ -293,7 +365,7 @@ export function HalViewer({ project, projectName }: { project: string; projectNa
               {selFile.brief && <p className="-mt-1 text-xs text-neutral-500">{selFile.brief}</p>}
               <SectionLabel>api reference @ {model.ref}</SectionLabel>
               {selFile.classes.map((c) => (
-                <ClassDoc key={c.name} cls={c} fnFilter={fnFilter} highlightFn={fnSel} />
+                <ClassDoc key={c.name} cls={c} fnFilter={fnFilter} highlightFn={fnSel} trace={trace} onOpenReg={openReg} />
               ))}
             </div>
           )}

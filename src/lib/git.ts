@@ -71,9 +71,11 @@ export async function refSubject(repoDir: string, ref: string): Promise<string> 
   return (await git(repoDir, ["log", "-1", "--format=%s", ref])).trim();
 }
 
-/** List files under `subDir` at `ref` matching an extension. */
+/** List files under `subDir` (whole tree if empty) at `ref` matching an extension. */
 export async function listFilesAt(repoDir: string, ref: string, subDir: string, ext: string): Promise<string[]> {
-  const out = await git(repoDir, ["ls-tree", "-r", "--name-only", ref, "--", subDir]);
+  const args = ["ls-tree", "-r", "--name-only", ref];
+  if (subDir) args.push("--", subDir);
+  const out = await git(repoDir, args);
   return out
     .trim()
     .split("\n")

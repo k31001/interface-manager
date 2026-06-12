@@ -33,7 +33,7 @@ function diffField(a: SfrField, b: SfrField): PropChange[] {
   return ch;
 }
 
-function diffReg(a: SfrReg, b: SfrReg): { reg: PropChange[]; fields: FieldDiff[] } {
+export function diffReg(a: SfrReg, b: SfrReg): { reg: PropChange[]; fields: FieldDiff[] } {
   const reg: PropChange[] = [];
   if (a.offset !== b.offset) reg.push({ prop: "offset", from: hex(a.offset), to: hex(b.offset), docOnly: false });
   if (a.width !== b.width) reg.push({ prop: "width", from: `${a.width}`, to: `${b.width}`, docOnly: false });

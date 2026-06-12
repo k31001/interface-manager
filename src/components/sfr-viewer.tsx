@@ -248,12 +248,16 @@ function ModuleView({
   reg,
   field,
   onBack,
+  project,
+  tag,
 }: {
   flat: FlatMod[];
   path: string;
   reg?: string | null;
   field?: string | null;
   onBack: (ipSel: string) => void;
+  project: string;
+  tag?: string | null;
 }) {
   const entry = flat.find((x) => x.mod.path === path);
   if (!entry) return <ErrorBox message={`Module not found at this tag: ${path}`} />;
@@ -279,7 +283,7 @@ function ModuleView({
         </span>
       </div>
       {mod.desc && <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-neutral-500">{mod.desc}</p>}
-      <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} />
+      <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} traceRef={tag} />
     </div>
   );
 }
@@ -372,7 +376,7 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
             />
           )}
           {model && sel && !sel.startsWith("ip:") && (
-            <ModuleView flat={flat} path={sel} reg={reg} field={field} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
+            <ModuleView flat={flat} path={sel} reg={reg} field={field} project={project} tag={tag} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
           )}
         </div>
       </div>
