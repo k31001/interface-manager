@@ -908,7 +908,10 @@ export function parseRdl(src: string, path: string): SfrModule {
     if (looseRegs.length) {
       return { path, file, addrmap: file.replace(/\.rdl$/, ""), regs: dedupeSort(looseRegs) };
     }
-    throw new Error(`No addrmap found in ${path}`);
+    // Empty, comment-only, or otherwise register-less .rdl (e.g. a placeholder
+    // for a WIP subsystem). Return an empty module rather than throwing, so one
+    // such file can't abort the whole SFR load and drop the later subsystems.
+    return { path, file, addrmap: file.replace(/\.rdl$/, ""), regs: [] };
   }
 
   const inst = top.insts[0];

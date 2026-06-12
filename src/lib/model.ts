@@ -43,7 +43,17 @@ export async function loadSfr(p: ProjectConfig, refInput?: string | null, onProg
     const contents = await readFilesAt(dir, sha, files); // one git process for all blobs
     const modules = files.map((f, i) => {
       onProgress?.(i + 1, files.length, f.split("/").pop() ?? f);
-      return { file: f, mod: parseRdl(contents.get(f) ?? "", f) };
+      let mod: SfrModule;
+      try {
+        mod = parseRdl(contents.get(f) ?? "", f);
+      } catch (e) {
+        // Isolate per-file failures: a single unparseable .rdl must never abort
+        // the whole load (which would silently drop every later subsystem).
+        console.warn(`[sfr] failed to parse ${f}: ${(e as Error).message}`);
+        const base = f.split("/").pop() ?? f;
+        mod = { path: f, file: base, addrmap: base.replace(/\.rdl$/, ""), regs: [] };
+      }
+      return { file: f, mod };
     });
 
     // hierarchy from path under rdlDir: <subsystem>/<ip>/<file>.rdl
