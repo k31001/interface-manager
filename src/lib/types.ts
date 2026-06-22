@@ -113,6 +113,39 @@ export interface SfrModel {
   totals: { modules: number; regs: number; fields: number };
 }
 
+// ---------- SFR skeleton (on-demand loading) ----------
+// Lightweight hierarchy with per-module register/field counts but no field
+// detail; the register map for a module is fetched on demand.
+
+export interface SfrTreeModule {
+  path: string;
+  file: string;
+  addrmap: string;
+  dispName?: string;
+  desc?: string;
+  regs: number; // deduped register count
+  fields: number;
+}
+export interface SfrTreeIp {
+  name: string;
+  modules: SfrTreeModule[];
+}
+export interface SfrTreeSubsystem {
+  name: string;
+  ips: SfrTreeIp[];
+}
+export interface SfrTreeSystem {
+  name: string;
+  subsystems: SfrTreeSubsystem[];
+}
+export interface SfrTree {
+  project: string;
+  ref: string;
+  sha: string;
+  systems: SfrTreeSystem[];
+  totals: { modules: number; regs: number; fields: number };
+}
+
 // ---------- HAL model ----------
 
 export interface HalParam {

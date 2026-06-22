@@ -118,6 +118,34 @@ export async function listFilesAt(repoDir: string, ref: string, subDir: string, 
     .filter((f) => f && f.endsWith(ext));
 }
 
+/** Like listFilesAt, but also returns each file's blob sha (content hash) so
+ *  parsed results can be cached per-content and reused across tags. */
+export async function listBlobsAt(
+  repoDir: string,
+  ref: string,
+  subDir: string,
+  ext: string
+): Promise<{ path: string; sha: string }[]> {
+  const args = ["ls-tree", "-r", ref]; // "<mode> blob <sha>\t<path>"
+  if (subDir) args.push("--", subDir);
+  const out = await git(repoDir, args);
+  return out
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const tab = line.indexOf("\t");
+      const sha = line.slice(0, tab).trim().split(/\s+/)[2];
+      return { path: line.slice(tab + 1), sha };
+    })
+    .filter((b) => b.path && b.path.endsWith(ext));
+}
+
+/** Blob sha of a single path at a ref (for on-demand single-file loads). */
+export async function blobShaAt(repoDir: string, ref: string, path: string): Promise<string> {
+  return (await git(repoDir, ["rev-parse", `${ref}:${path}`])).trim();
+}
+
 export async function readFileAt(repoDir: string, ref: string, path: string): Promise<string> {
   return git(repoDir, ["show", `${ref}:${path}`]);
 }
