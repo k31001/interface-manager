@@ -165,7 +165,11 @@ export function RegisterCard({
   const used = ip ? regUsedBy?.[`${ip}::${reg.name}`] : undefined;
   useEffect(() => {
     if (flash && ref.current) {
-      ref.current.scrollIntoView({ block: "center", behavior: "smooth" });
+      ref.current.scrollIntoView({ block: "center" });
+      // off-screen cards use content-visibility, so neighbours render after the
+      // first scroll and shift layout — re-anchor on the next frame so the
+      // highlighted register lands centered.
+      requestAnimationFrame(() => ref.current?.scrollIntoView({ block: "center" }));
     }
   }, [flash]);
 
@@ -173,7 +177,7 @@ export function RegisterCard({
   const toggle = (p: "decode" | "history") => setPanel((cur) => (cur === p ? null : p));
 
   return (
-    <Card className={cx("fade-up overflow-hidden", flash && "flash-ring")} >
+    <Card className={cx("cv-auto fade-up overflow-hidden", flash && "flash-ring")} >
       <div ref={ref} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-neutral-200 bg-neutral-50/60 px-4 py-2.5">
         <span className="font-mono text-[14px] font-bold tracking-tight text-neutral-900">{channelLabel(reg)}</span>
         {reg.arrayCount && (

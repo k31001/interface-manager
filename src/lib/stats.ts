@@ -17,6 +17,23 @@ import type {
 const DAY = 24 * 3600 * 1000;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
+/** Max concurrent per-tag model loads in the stats tag-walk. */
+const STATS_CONCURRENCY = 8;
+
+/** Map items through an async fn with bounded concurrency, preserving order. */
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
+
 function regKeyMap(model: SfrModel): Map<string, SfrReg> {
   const map = new Map<string, SfrReg>();
   for (const { mod } of flattenModules(model)) {
@@ -45,14 +62,21 @@ export async function computeSfrStats(p: ProjectConfig, baselineRef?: string, on
 
     const points: StatsPoint[] = [];
     const warnings: StatsWarning[] = [];
-    let prevModel: SfrModel | null = null;
 
     const relevant = tags.filter((t) => new Date(t.date).getTime() >= baseDate);
-    let ti = 0;
-    for (const tag of relevant) {
-      onProgress?.(++ti, relevant.length, tag.name);
+    // Load every tag's model in parallel (bounded), then diff consecutively below.
+    let loaded = 0;
+    const models = await mapPool(relevant, STATS_CONCURRENCY, async (tag) => {
+      const m = await loadSfr(p, tag.name);
+      onProgress?.(++loaded, relevant.length, tag.name);
+      return m;
+    });
+
+    let prevModel: SfrModel | null = null;
+    for (let ti = 0; ti < relevant.length; ti++) {
+      const tag = relevant[ti];
       const tagDate = new Date(tag.date).getTime();
-      const model = await loadSfr(p, tag.name);
+      const model = models[ti];
       const curRegs = regKeyMap(model);
 
       let regUnchanged = 0;
@@ -142,14 +166,20 @@ export async function computeHalStats(p: ProjectConfig, baselineRef?: string, on
 
     const points: StatsPoint[] = [];
     const warnings: StatsWarning[] = [];
-    let prevModel: HalModel | null = null;
 
     const relevant = tags.filter((t) => new Date(t.date).getTime() >= baseDate);
-    let ti = 0;
-    for (const tag of relevant) {
-      onProgress?.(++ti, relevant.length, tag.name);
+    let loaded = 0;
+    const models = await mapPool(relevant, STATS_CONCURRENCY, async (tag) => {
+      const m = await loadHal(p, tag.name);
+      onProgress?.(++loaded, relevant.length, tag.name);
+      return m;
+    });
+
+    let prevModel: HalModel | null = null;
+    for (let ti = 0; ti < relevant.length; ti++) {
+      const tag = relevant[ti];
       const tagDate = new Date(tag.date).getTime();
-      const model = await loadHal(p, tag.name);
+      const model = models[ti];
       const curFns = fnKeyMap(model);
 
       let unchanged = 0;

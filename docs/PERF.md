@@ -54,18 +54,25 @@ the HAL viewer is the next step.
 Net effect: the SFR initial render needs only the skeleton; opening a module
 parses (and transfers) one file; stats reuses per-blob parses across tags.
 
-## Phase 2 — stats tag-walk (planned)
+## Phase 2 — stats tag-walk (implemented)
 
-`computeSfrStats`/`computeHalStats` load tags sequentially. The diffs need
-consecutive models but the *loads* are independent — run them with bounded
-concurrency, then diff in order. With the per-blob cache from Phase 1 this makes
-cold stats for a large project scale with the number of *unique* file versions
-rather than tags × files.
+`computeSfrStats`/`computeHalStats` now load every tag's model with bounded
+concurrency (`mapPool`, 8 at a time) and diff consecutively afterwards — the
+per-tag git I/O and first-occurrence parses overlap. Measured on Pulsar (12
+tags): cold `computeSfrStats` **605 ms → 248 ms (~2.4×)**, identical results
+(verify passes). This helps the first-ever stats computation; results are still
+disk-cached, so every later open stays instant.
 
-## Phase 3 — polish (planned)
+## Phase 3 — polish (implemented)
 
-- Virtualize the register-card list / regmap rows for a single huge module
-  (reuse the changelog's `@tanstack/react-virtual` pattern).
-- Scope trace to the open IP (`regUsedBy` for one IP) or cache per-file scans so
-  new sources don't re-scan everything.
-- Profile `parseRdl`'s tokenizer once the above lands.
+- **Trace per-blob scan cache.** `loadTrace` caches each source file's scan by
+  `(blob sha, SFR sha)`, so an evolving HAL only re-scans the files that actually
+  changed (analogous to Phase 1's parse cache).
+- **Off-screen register cards** use `content-visibility: auto` so a module with
+  thousands of registers only lays out / paints the visible cards. The flash
+  scroll re-anchors on the next frame so scroll-to-register stays accurate
+  despite the intrinsic-size estimate.
+
+Remaining ideas if a project pushes further: the same tree/detail split for the
+HAL viewer, regmap-table row virtualization, and a cheap structural count to skip
+the SFR skeleton's first parse.

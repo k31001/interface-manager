@@ -1,6 +1,6 @@
-import { diskCached } from "./cache";
+import { cached, diskCached } from "./cache";
 import { repoFor } from "./config";
-import { listFilesAt, readFilesAt, resolveRepoDir, revParse } from "./git";
+import { listBlobsAt, readFilesAt, resolveRepoDir, revParse } from "./git";
 import { type IpRegs, type RegRef, scanHalImpl } from "./hal-impl";
 import { flattenModules, loadSfr, resolveRef } from "./model";
 import type { ProjectConfig } from "./types";
@@ -51,17 +51,21 @@ export async function loadTrace(p: ProjectConfig, refInput?: string | null): Pro
 
     // implementation sources live under halSrcDir when configured; otherwise
     // fall back to a repo-wide scan (subDir "")
-    const files = [
-      ...(await listFilesAt(dir, sha, srcDir, ".c")),
-      ...(await listFilesAt(dir, sha, srcDir, ".cpp")),
+    const blobs = [
+      ...(await listBlobsAt(dir, sha, srcDir, ".c")),
+      ...(await listBlobsAt(dir, sha, srcDir, ".cpp")),
     ];
-    const contents = await readFilesAt(dir, sha, files);
+    const contents = await readFilesAt(dir, sha, blobs.map((b) => b.path));
 
     const fnTouches: Record<string, RegRef[]> = {};
     const regUsedBy: Record<string, FnRef[]> = {};
 
-    for (const f of files) {
-      const scanned = scanHalImpl(contents.get(f) ?? "", ipsByPtr);
+    for (const { path, sha: blobSha } of blobs) {
+      // Cache each file's scan by (content, SFR model) so an evolving HAL source
+      // tree only re-scans the files that actually changed.
+      const scanned = await cached(`halscan:${blobSha}:${sfr.sha}`, async () =>
+        scanHalImpl(contents.get(path) ?? "", ipsByPtr)
+      );
       for (const [fnKey, refs] of scanned) {
         // merge if a method appears across files (rare)
         fnTouches[fnKey] = mergeRefs(fnTouches[fnKey], refs);
@@ -78,7 +82,7 @@ export async function loadTrace(p: ProjectConfig, refInput?: string | null): Pro
       regUsedBy[k] = [...seen.values()].sort((a, b) => a.fn.localeCompare(b.fn));
     }
 
-    return { project: p.id, ref, fnTouches, regUsedBy, implFiles: files.length };
+    return { project: p.id, ref, fnTouches, regUsedBy, implFiles: blobs.length };
   });
 }
 

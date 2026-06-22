@@ -174,3 +174,12 @@ body {
   width: 40%;
   animation: im-indeterminate 1.1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Skip layout/paint of off-screen register cards so a module with thousands of
+   registers stays responsive. On-screen cards render normally, so scroll-into-
+   view, the flash ring, and expand panels are unaffected. The intrinsic-size
+   estimate keeps the scrollbar stable before a card is first rendered. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
