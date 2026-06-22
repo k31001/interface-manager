@@ -31,24 +31,28 @@ on demand.
   file is parsed through a cache keyed by its blob sha. Identical file content at
   different tags now parses **once**, not once per tag — the big win for stats
   and multi-tag browsing. `loadSfr`/`loadHal` use it transparently.
-- **Skeleton loaders** `loadSfrTree` / `loadHalTree`: the full hierarchy with
-  per-module register/function **counts** but no field/signature detail. Counts
-  are exact (taken from the per-blob-cached parse) so the tree/overview match the
-  detail view; the payload to the client is a small counts-only tree. A cheap
-  structural count that avoids even the first parse is a noted follow-up.
-- **Detail loaders** `loadSfrModule(path)` / `loadHalFile(path)`: parse one file
-  on demand (through the per-blob cache).
+- **Skeleton loader** `loadSfrTree`: the full hierarchy with per-module register
+  **counts** but no field detail. Counts are exact (from the per-blob-cached
+  parse) so the tree/overview match the detail view; the payload to the client
+  is a small counts-only tree. A cheap structural count that avoids even the
+  first parse is a noted follow-up.
+- **Detail loaders** `loadSfrModule(path)` / `loadSfrModules(paths)`: parse one
+  module / one IP's modules on demand (through the per-blob cache).
 
 **Routes**
-- `GET …/sfr/tree` (stream), `GET …/sfr/module?path=` — and the HAL equivalents.
+- `GET …/sfr/tree/stream` (skeleton) and `GET …/sfr/modules?paths=` (detail).
 
 **Client**
-- The SFR/HAL viewers load the tree skeleton for the tree + overview, then fetch
-  a module's detail when it's opened (`ModuleView`, `IpRegmap`, HAL `FunctionCard`).
-  The browser no longer receives or holds the whole model.
+- The SFR viewer loads the tree skeleton for the tree + overview, then fetches a
+  module's register map when an IP/module is opened (`IpRegmap`, `ModuleView`).
+  The browser no longer receives or holds the whole SFR model.
 
-Net effect: initial render needs only the skeleton; opening a module parses one
-file; stats reuses per-blob parses across tags.
+The HAL viewer still loads its model in full, but now benefits from the per-blob
+parse cache (the big stats/multi-tag win); applying the same tree/detail split to
+the HAL viewer is the next step.
+
+Net effect: the SFR initial render needs only the skeleton; opening a module
+parses (and transfers) one file; stats reuses per-blob parses across tags.
 
 ## Phase 2 — stats tag-walk (planned)
 

@@ -195,6 +195,11 @@ export async function loadSfrModule(p: ProjectConfig, refInput: string | null | 
   return parseSfrBlob(blobSha, src, modulePath);
 }
 
+/** On-demand: parse several modules at once (one IP's register maps). */
+export async function loadSfrModules(p: ProjectConfig, refInput: string | null | undefined, modulePaths: string[]): Promise<SfrModule[]> {
+  return Promise.all(modulePaths.map((path) => loadSfrModule(p, refInput, path)));
+}
+
 // ---------------------------------------------------------------- HAL
 
 async function parseHalBlob(sha: string, src: string, path: string, rel: string): Promise<HalFile> {

@@ -1,11 +1,11 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { dedupeModelChannels } from "@/lib/channels";
+import { useMemo, useState } from "react";
+import { dedupeChannels } from "@/lib/channels";
 import { hex } from "@/lib/format";
 import type { TraceResult } from "@/lib/trace";
-import type { SfrIp, SfrModel, SfrModule, SfrSubsystem, SfrSystem, TagInfo } from "@/lib/types";
+import type { SfrModule, SfrTree, SfrTreeIp, SfrTreeModule, SfrTreeSubsystem, SfrTreeSystem, TagInfo } from "@/lib/types";
 import { useApi, useStream } from "@/lib/use-api";
 import { IconChevron, IconDoc, IconFolder } from "./icons";
 import { AccessLegend, RegmapTable } from "./regmap";
@@ -14,26 +14,35 @@ import { PageHeader } from "./shell";
 import { TagSelect } from "./tag-select";
 import { Badge, Card, ErrorBox, ProgressPanel, Spinner, cx } from "./ui";
 
-type FlatMod = { system: string; subsystem: string; ip: string; mod: SfrModule };
+type TreeMod = { system: string; subsystem: string; ip: string; mod: SfrTreeModule };
 
-function flatten(model: SfrModel): FlatMod[] {
-  const out: FlatMod[] = [];
-  for (const sys of model.systems)
+function flattenTree(tree: SfrTree): TreeMod[] {
+  const out: TreeMod[] = [];
+  for (const sys of tree.systems)
     for (const sub of sys.subsystems)
       for (const ip of sub.ips)
         for (const mod of ip.modules) out.push({ system: sys.name, subsystem: sub.name, ip: ip.name, mod });
   return out;
 }
 
+/** Fetch full register-map detail for a set of module paths, channel-deduped. */
+function useModules(project: string, tag: string | null | undefined, paths: string[]) {
+  const q = paths.map((p) => encodeURIComponent(p)).join(",");
+  const url = q ? `/api/projects/${project}/sfr/modules?${tag ? `ref=${encodeURIComponent(tag)}&` : ""}paths=${q}` : null;
+  const { data, error, loading } = useApi<SfrModule[]>(url);
+  const mods = useMemo(() => (data ? data.map((m) => ({ ...m, regs: dedupeChannels(m.regs) })) : null), [data]);
+  return { mods, error, loading };
+}
+
 // ---------------- tree ----------------
 
 function Tree({
-  model,
+  tree,
   sel,
   onSelect,
   filter,
 }: {
-  model: SfrModel;
+  tree: SfrTree;
   sel?: string | null;
   onSelect: (sel: string) => void;
   filter: string;
@@ -52,14 +61,12 @@ function Tree({
 
   return (
     <div className="flex flex-col gap-0.5 text-[12.5px]">
-      {model.systems.map((sys: SfrSystem) => (
+      {tree.systems.map((sys: SfrTreeSystem) => (
         <div key={sys.name}>
-          {sys.subsystems.map((sub: SfrSubsystem) => {
+          {sys.subsystems.map((sub: SfrTreeSubsystem) => {
             const subId = `${sys.name}/${sub.name}`;
             const subCollapsed = collapsed.has(subId) && !f;
-            const visibleIps = sub.ips.filter(
-              (ip) => matches(ip.name) || ip.modules.some((m) => matches(m.file) || m.regs.some((r) => matches(r.name)))
-            );
+            const visibleIps = sub.ips.filter((ip) => matches(ip.name) || ip.modules.some((m) => matches(m.file)));
             if (f && !visibleIps.length && !matches(sub.name)) return null;
             return (
               <div key={sub.name}>
@@ -78,10 +85,10 @@ function Tree({
                   )}
                 >
                   <div className="overflow-hidden">
-                    {(f ? visibleIps : sub.ips).map((ip: SfrIp) => {
+                    {(f ? visibleIps : sub.ips).map((ip: SfrTreeIp) => {
                       const ipId = `ip:${sys.name}/${sub.name}/${ip.name}`;
                       const ipCollapsed = collapsed.has(ipId) && !f;
-                      const regCount = ip.modules.reduce((n, m) => n + m.regs.length, 0);
+                      const regCount = ip.modules.reduce((n, m) => n + m.regs, 0);
                       return (
                         <div key={ip.name}>
                           <div
@@ -118,7 +125,7 @@ function Tree({
                           >
                             <div className="overflow-hidden">
                               {ip.modules
-                                .filter((m) => !f || matches(m.file) || m.regs.some((r) => matches(r.name)))
+                                .filter((m) => !f || matches(m.file))
                                 .map((mod) => (
                                   <button
                                     key={mod.path}
@@ -150,10 +157,10 @@ function Tree({
 
 // ---------------- main views ----------------
 
-function OverviewCards({ model, onSelect }: { model: SfrModel; onSelect: (sel: string) => void }) {
+function OverviewCards({ tree, onSelect }: { tree: SfrTree; onSelect: (sel: string) => void }) {
   return (
     <div className="fade-up flex flex-col gap-6">
-      {model.systems.map((sys) => (
+      {tree.systems.map((sys) => (
         <div key={sys.name}>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {sys.subsystems.map((sub) => (
@@ -162,8 +169,7 @@ function OverviewCards({ model, onSelect }: { model: SfrModel; onSelect: (sel: s
                   <IconFolder size={14} className="text-neutral-400" />
                   <span className="text-[13px] font-semibold">{sub.name}</span>
                   <span className="ml-auto text-[10.5px] text-neutral-400">
-                    {sub.ips.length} IPs ·{" "}
-                    {sub.ips.reduce((n, ip) => n + ip.modules.reduce((m, x) => m + x.regs.length, 0), 0)} regs
+                    {sub.ips.length} IPs · {sub.ips.reduce((n, ip) => n + ip.modules.reduce((m, x) => m + x.regs, 0), 0)} regs
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -187,35 +193,41 @@ function OverviewCards({ model, onSelect }: { model: SfrModel; onSelect: (sel: s
 }
 
 function IpRegmap({
-  model,
+  tree,
   ipSel,
+  project,
+  tag,
   onSelectModule,
   onFieldClick,
 }: {
-  model: SfrModel;
+  tree: SfrTree;
   ipSel: string; // ip:sys/sub/ip
+  project: string;
+  tag?: string | null;
   onSelectModule: (path: string) => void;
   onFieldClick: (modPath: string, reg: string, field: string) => void;
 }) {
   const [, path] = ipSel.split(":");
-  const [sysName, subName, ipName] = path.split("/");
-  const sys = model.systems.find((s) => s.name === sysName);
-  const sub = sys?.subsystems.find((s) => s.name === subName);
-  const ip = sub?.ips.find((i) => i.name === ipName);
-  if (!ip) return <ErrorBox message={`IP not found: ${path}`} />;
+  const [, subName, ipName] = path.split("/");
+  const ipMods = useMemo(() => {
+    for (const sys of tree.systems)
+      for (const sub of sys.subsystems)
+        for (const ip of sub.ips) if (`ip:${sys.name}/${sub.name}/${ip.name}` === ipSel) return ip.modules;
+    return null;
+  }, [tree, ipSel]);
+  const { mods, loading } = useModules(project, tag, (ipMods ?? []).map((m) => m.path));
 
-  const regCount = ip.modules.reduce((n, m) => n + m.regs.length, 0);
-  const fieldCount = ip.modules.reduce((n, m) => n + m.regs.reduce((x, r) => x + r.fields.length, 0), 0);
+  if (!ipMods) return <ErrorBox message={`IP not found: ${path}`} />;
+  const regCount = ipMods.reduce((n, m) => n + m.regs, 0);
+  const fieldCount = ipMods.reduce((n, m) => n + m.fields, 0);
 
   return (
     <div className="fade-up flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline gap-3">
-        <h2 className="font-mono text-lg font-bold tracking-tight">{ip.name}</h2>
-        <span className="text-xs text-neutral-400">
-          {subName}
-        </span>
+        <h2 className="font-mono text-lg font-bold tracking-tight">{ipName}</h2>
+        <span className="text-xs text-neutral-400">{subName}</span>
         <span className="ml-auto flex gap-2">
-          <Badge kind="outline">{ip.modules.length} modules</Badge>
+          <Badge kind="outline">{ipMods.length} modules</Badge>
           <Badge kind="outline">{regCount} registers</Badge>
           <Badge kind="outline">{fieldCount} fields</Badge>
         </span>
@@ -224,23 +236,24 @@ function IpRegmap({
         Register map at a glance — hover a field for details, click to open the register table, click a module name for
         the detailed view.
       </p>
-      <AccessLegend regs={ip.modules.flatMap((m) => m.regs)} />
-      <RegmapTable
-        groups={ip.modules.map((m) => ({
-          id: m.path,
-          title: m.file,
-          sub: `addrmap ${m.addrmap}`,
-          regs: m.regs,
-        }))}
-        onGroupClick={onSelectModule}
-        onFieldClick={(modPath, reg, field) => onFieldClick(modPath, reg.name, field.name)}
-      />
+      {mods ? (
+        <>
+          <AccessLegend regs={mods.flatMap((m) => m.regs)} />
+          <RegmapTable
+            groups={mods.map((m) => ({ id: m.path, title: m.file, sub: `addrmap ${m.addrmap}`, regs: m.regs }))}
+            onGroupClick={onSelectModule}
+            onFieldClick={(modPath, reg, field) => onFieldClick(modPath, reg.name, field.name)}
+          />
+        </>
+      ) : loading ? (
+        <Spinner label="Loading register map…" />
+      ) : null}
     </div>
   );
 }
 
 function ModuleView({
-  flat,
+  tree,
   path,
   reg,
   field,
@@ -248,7 +261,7 @@ function ModuleView({
   project,
   tag,
 }: {
-  flat: FlatMod[];
+  tree: SfrTree;
   path: string;
   reg?: string | null;
   field?: string | null;
@@ -257,10 +270,13 @@ function ModuleView({
   tag?: string | null;
 }) {
   const { data: trace } = useApi<TraceResult>(`/api/projects/${project}/trace${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`);
-  const entry = flat.find((x) => x.mod.path === path);
-  if (!entry) return <ErrorBox message={`Module not found at this tag: ${path}`} />;
-  const { system, subsystem, ip, mod } = entry;
-  const addrSpan = mod.regs.length
+  const { mods, loading } = useModules(project, tag, [path]);
+  const ctx = useMemo(() => flattenTree(tree).find((x) => x.mod.path === path), [tree, path]);
+
+  if (!ctx) return <ErrorBox message={`Module not found at this tag: ${path}`} />;
+  const meta = ctx.mod;
+  const mod = mods?.[0] ?? null;
+  const addrSpan = mod && mod.regs.length
     ? `${hex(Math.min(...mod.regs.map((r) => r.offset)), 4)} – ${hex(Math.max(...mod.regs.map((r) => r.offset)), 4)}`
     : "—";
 
@@ -268,20 +284,24 @@ function ModuleView({
     <div className="fade-up flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline gap-3">
         <button
-          onClick={() => onBack(`ip:${system}/${subsystem}/${ip}`)}
+          onClick={() => onBack(`ip:${ctx.system}/${ctx.subsystem}/${ctx.ip}`)}
           className="cursor-pointer font-mono text-xs text-neutral-400 underline-offset-2 transition-colors hover:text-neutral-900 hover:underline"
         >
-          ← {ip}
+          ← {ctx.ip}
         </button>
-        <h2 className="font-mono text-lg font-bold tracking-tight">{mod.file}</h2>
-        <span className="text-xs text-neutral-400">addrmap {mod.addrmap}</span>
+        <h2 className="font-mono text-lg font-bold tracking-tight">{meta.file}</h2>
+        <span className="text-xs text-neutral-400">addrmap {meta.addrmap}</span>
         <span className="ml-auto flex gap-2">
-          <Badge kind="outline">{mod.regs.length} registers</Badge>
+          <Badge kind="outline">{meta.regs} registers</Badge>
           <Badge kind="outline">{addrSpan}</Badge>
         </span>
       </div>
-      {mod.desc && <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-neutral-500">{mod.desc}</p>}
-      <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} regUsedBy={trace?.regUsedBy} />
+      {meta.desc && <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-neutral-500">{meta.desc}</p>}
+      {mod ? (
+        <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} regUsedBy={trace?.regUsedBy} />
+      ) : loading ? (
+        <Spinner label="Loading registers…" />
+      ) : null}
     </div>
   );
 }
@@ -300,13 +320,9 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
   const [filter, setFilter] = useState("");
 
   const { data: tagsData } = useApi<{ tags: TagInfo[] }>(`/api/projects/${project}/tags?kind=sfr`);
-  const { data: rawModel, error, loading, progress } = useStream<SfrModel>(
-    `/api/projects/${project}/sfr/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
+  const { data: tree, error, loading, progress } = useStream<SfrTree>(
+    `/api/projects/${project}/sfr/tree/stream${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`
   );
-
-  // collapse array-instanced register channels to one representative for display
-  const model = useMemo(() => (rawModel ? dedupeModelChannels(rawModel) : rawModel), [rawModel]);
-  const flat = useMemo(() => (model ? flatten(model) : []), [model]);
 
   const setParams = (patch: Record<string, string | null>) => {
     const q = new URLSearchParams(sp.toString());
@@ -317,14 +333,6 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
     router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   };
 
-  // scroll to highlighted register
-  useEffect(() => {
-    if (reg && sel && !sel.startsWith("ip:") && model) {
-      const el = document.getElementById(`reg-${sel}-${reg}`);
-      el?.scrollIntoView({ block: "center" });
-    }
-  }, [reg, sel, model]);
-
   return (
     <div className="flex h-full flex-col">
       <PageHeader
@@ -334,8 +342,8 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
           </>
         }
         sub={
-          model
-            ? `${model.totals.modules} modules · ${model.totals.regs} registers · ${model.totals.fields} fields @ ${model.ref}`
+          tree
+            ? `${tree.totals.modules} modules · ${tree.totals.regs} registers · ${tree.totals.fields} fields @ ${tree.ref}`
             : " "
         }
       >
@@ -353,8 +361,8 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
             />
           </div>
           <div className="flex-1 overflow-y-auto p-2">
-            {model ? (
-              <Tree model={model} sel={sel} onSelect={(s) => setParams({ sel: s, reg: null, field: null })} filter={filter} />
+            {tree ? (
+              <Tree tree={tree} sel={sel} onSelect={(s) => setParams({ sel: s, reg: null, field: null })} filter={filter} />
             ) : (
               <Spinner />
             )}
@@ -363,20 +371,22 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
 
         <div className="min-w-0 flex-1 overflow-y-auto p-6">
           {error && <ErrorBox message={error} />}
-          {loading && !model && (
+          {loading && !tree && (
             <ProgressPanel title="Parsing SystemRDL…" label={progress?.label} done={progress?.done} total={progress?.total} />
           )}
-          {model && !sel && <OverviewCards model={model} onSelect={(s) => setParams({ sel: s })} />}
-          {model && sel?.startsWith("ip:") && (
+          {tree && !sel && <OverviewCards tree={tree} onSelect={(s) => setParams({ sel: s })} />}
+          {tree && sel?.startsWith("ip:") && (
             <IpRegmap
-              model={model}
+              tree={tree}
               ipSel={sel}
+              project={project}
+              tag={tag}
               onSelectModule={(path) => setParams({ sel: path })}
               onFieldClick={(modPath, r, f) => setParams({ sel: modPath, reg: r, field: f })}
             />
           )}
-          {model && sel && !sel.startsWith("ip:") && (
-            <ModuleView flat={flat} path={sel} reg={reg} field={field} project={project} tag={tag} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
+          {tree && sel && !sel.startsWith("ip:") && (
+            <ModuleView tree={tree} path={sel} reg={reg} field={field} project={project} tag={tag} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
           )}
         </div>
       </div>
