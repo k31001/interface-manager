@@ -23,8 +23,8 @@ const KIND_CONFIG = {
     title: "SFR Statistics",
     unitNoun: "registers",
     metrics: [
-      { key: "regs", label: "Register reuse", color: "#0a0a0a" },
-      { key: "fields", label: "Field reuse", color: "#a3a3a3" },
+      { key: "regs", label: "Register reuse", color: "var(--chart-ink)" },
+      { key: "fields", label: "Field reuse", color: "var(--chart-ink-soft)" },
     ] as MetricDef[],
     totals: [
       { key: "regs", label: "registers" },
@@ -34,7 +34,7 @@ const KIND_CONFIG = {
   hal: {
     title: "HAL Statistics",
     unitNoun: "functions",
-    metrics: [{ key: "fns", label: "Function reuse", color: "#0a0a0a" }] as MetricDef[],
+    metrics: [{ key: "fns", label: "Function reuse", color: "var(--chart-ink)" }] as MetricDef[],
     totals: [{ key: "fns", label: "functions" }],
   },
 };
@@ -161,7 +161,7 @@ export function StatsView({ project, projectName, kind }: { project: string; pro
                   <ChartLegend
                     items={[
                       ...cfg.metrics.map((m) => ({ label: m.label, color: m.color, dashed: m.dashed })),
-                      { label: "warning event", color: "#dc2626" },
+                      { label: "warning event", color: "var(--color-red-500)" },
                     ]}
                   />
                 </div>

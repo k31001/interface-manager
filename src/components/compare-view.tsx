@@ -17,7 +17,7 @@ interface ProjectMeta {
 
 // distinct hue AND shape per project so series never look alike
 const PALETTE: { color: string; marker: MarkerShape }[] = [
-  { color: "#0a0a0a", marker: "circle" }, // black circle
+  { color: "var(--chart-ink)", marker: "circle" }, // primary ink (themed)
   { color: "#0ea5e9", marker: "square" }, // sky square
   { color: "#f59e0b", marker: "triangle" }, // amber triangle
   { color: "#14b8a6", marker: "diamond" }, // teal diamond
@@ -148,7 +148,7 @@ export function CompareView({ projects }: { projects: ProjectMeta[] }) {
                       on ? "border-neutral-900 bg-white text-neutral-900 shadow-[0_1px_4px_rgba(0,0,0,0.06)]" : "border-neutral-200 bg-neutral-50 text-neutral-400 hover:border-neutral-300"
                     )}
                   >
-                    <MarkerSwatch shape={pal.marker} color={on ? pal.color : "#cbcbcb"} size={12} />
+                    <MarkerSwatch shape={pal.marker} color={on ? pal.color : "var(--chart-axis-faint)"} size={12} />
                     {p.name}
                     <span className="font-mono text-[9.5px] text-neutral-400">{p.codename}</span>
                   </button>

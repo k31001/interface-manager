@@ -14,7 +14,9 @@ import {
   IconSearch,
 } from "./icons";
 import { Logo } from "./logo";
+import { ThemeSwitcherCompact } from "./theme-switcher";
 import { SectionLabel, cx } from "./ui";
+import { VERSION_LABEL } from "@/lib/version";
 
 export interface ProjectMeta {
   id: string;
@@ -133,6 +135,13 @@ export function Sidebar({ projects, onOpenSearch }: { projects: ProjectMeta[]; o
         <NavLink href="/settings" active={pathname === "/settings"} icon={<IconGear size={15} />}>
           Settings
         </NavLink>
+        <div className="mt-3 px-1">
+          <SectionLabel className="pb-1.5">Theme</SectionLabel>
+          <ThemeSwitcherCompact />
+        </div>
+        <div className="mt-3 px-1 font-mono text-[10px] tracking-tight text-neutral-400" title={`Build ${VERSION_LABEL}`}>
+          {VERSION_LABEL}
+        </div>
       </div>
     </aside>
   );

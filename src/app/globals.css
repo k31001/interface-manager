@@ -1,33 +1,304 @@
 @import "tailwindcss";
 
-:root {
-  --background: #fafafa;
-  --foreground: #0a0a0a;
-}
+/* ============================================================================
+   THEMING
+   ----------------------------------------------------------------------------
+   The whole UI is built from Tailwind's `neutral-*` greyscale used as a single
+   lightness ramp (50 = near-background … 900 = foreground) plus a handful of
+   semantic accents (red/emerald/amber/sky/violet/teal/rose). Tailwind v4 compiles
+   every colour utility to `var(--color-<name>)`, so a theme is just a re-mapping
+   of those CSS variables on <html data-theme="…">. Switching the attribute
+   re-skins all ~500 utility usages with zero component edits — see useTheme().
+
+   Each theme block redefines:
+     • the neutral ramp 50→950 (+ --color-white / --color-black, which back the
+       card/input surfaces and the on-primary text respectively), and
+     • a set of non-Tailwind helpers (--surface, --header-bg, selection, scrollbar,
+       hatch, focus ring and the chart inks) consumed by the rules at the bottom
+       and by SVG charts.
+   Soft accent *backgrounds/borders* (the -50/-100/-200/-300 steps) are derived
+   once, for every non-default theme, by mixing the accent into that theme's
+   surface — so an "added" pill blends with wood/steel/dark instead of clashing.
+   ========================================================================== */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* ---------- light (default) ---------- */
+:root {
+  color-scheme: light;
+
+  --background: #fafafa;
+  --foreground: #0a0a0a;
+  --surface: #ffffff;
+  --header-bg: rgb(250 250 250 / 0.9);
+  --app-bg-image: none;
+
+  --selection-bg: #0a0a0a;
+  --selection-fg: #fafafa;
+  --scrollbar-thumb: #d4d4d4;
+  --hatch-color: rgba(10, 10, 10, 0.07);
+  --ring-color: rgba(10, 10, 10, 0.55);
+
+  --chart-grid: #e8e8e8;
+  --chart-axis: #a3a3a3;
+  --chart-axis-faint: #cdcdcd;
+  --chart-ink: #0a0a0a;
+  --chart-ink-soft: #a3a3a3;
+}
+
+/* ---------- dark ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-neutral-50: #1a1a1d;
+  --color-neutral-100: #212126;
+  --color-neutral-200: #2b2b31;
+  --color-neutral-300: #3a3a42;
+  --color-neutral-400: #909099;
+  --color-neutral-500: #a8a8b0;
+  --color-neutral-600: #c6c6cd;
+  --color-neutral-700: #d8d8de;
+  --color-neutral-800: #ebebef;
+  --color-neutral-900: #f5f5f7;
+  --color-neutral-950: #fcfcfd;
+  --color-white: #18181b;
+  --color-black: #f5f5f7;
+
+  --background: #101012;
+  --foreground: #f5f5f7;
+  --surface: #18181b;
+  --header-bg: rgb(16 16 18 / 0.85);
+
+  --selection-bg: #f5f5f7;
+  --selection-fg: #101012;
+  --scrollbar-thumb: #3a3a42;
+  --hatch-color: rgba(255, 255, 255, 0.08);
+  --ring-color: rgba(245, 245, 247, 0.5);
+
+  --chart-grid: #2b2b31;
+  --chart-axis: #6f6f78;
+  --chart-axis-faint: #46464d;
+  --chart-ink: #f5f5f7;
+  --chart-ink-soft: #909099;
+}
+
+/* On dark surfaces the accent *text* steps (-600/-700/-800, the dark Tailwind
+   tints) are unreadable, so lift them toward the lighter end of each scale. The
+   soft -50/-200 backgrounds come from the shared mix block below. */
+[data-theme="dark"] {
+  --color-red-600: #f98a8a;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-sky-700: #7dd3fc;
+  --color-violet-700: #c4b5fd;
+  --color-teal-700: #5eead4;
+  --color-rose-700: #fda4af;
+}
+
+/* ---------- colorful — clean cool base, deep-violet primary, vivid accents ---------- */
+[data-theme="colorful"] {
+  --color-neutral-50: #f5f3ff;
+  --color-neutral-100: #ece9fb;
+  --color-neutral-200: #e2def5;
+  --color-neutral-300: #cfc8ec;
+  --color-neutral-400: #8f86b8;
+  --color-neutral-500: #6f6699;
+  --color-neutral-600: #574d82;
+  --color-neutral-700: #443c68;
+  --color-neutral-800: #312a52;
+  --color-neutral-900: #4c1d95;
+  --color-neutral-950: #2e1065;
+  --color-white: #ffffff;
+  --color-black: #1e1b2e;
+
+  --background: #faf9ff;
+  --foreground: #221f2e;
+  --surface: #ffffff;
+  --header-bg: rgb(250 249 255 / 0.9);
+
+  --selection-bg: #4c1d95;
+  --selection-fg: #ffffff;
+  --scrollbar-thumb: #cfc8ec;
+  --hatch-color: rgba(76, 29, 149, 0.08);
+  --ring-color: rgba(76, 29, 149, 0.5);
+
+  --chart-grid: #ebe7f7;
+  --chart-axis: #9b93bf;
+  --chart-axis-faint: #cfc8ec;
+  --chart-ink: #4c1d95;
+  --chart-ink-soft: #8f86b8;
+}
+
+/* ---------- pastel — soft, low-contrast, plum primary ---------- */
+[data-theme="pastel"] {
+  --color-neutral-50: #fdf6fb;
+  --color-neutral-100: #f9eef6;
+  --color-neutral-200: #f1e4ee;
+  --color-neutral-300: #e6d3e2;
+  --color-neutral-400: #b09bac;
+  --color-neutral-500: #8f7a8b;
+  --color-neutral-600: #6f5d6c;
+  --color-neutral-700: #594a57;
+  --color-neutral-800: #443743;
+  --color-neutral-900: #5a3f6b;
+  --color-neutral-950: #3f3147;
+  --color-white: #fffdff;
+  --color-black: #3f3147;
+
+  --background: #fbf4f9;
+  --foreground: #4a3f48;
+  --surface: #fffdff;
+  --header-bg: rgb(251 244 249 / 0.9);
+
+  --selection-bg: #5a3f6b;
+  --selection-fg: #fffdff;
+  --scrollbar-thumb: #e6d3e2;
+  --hatch-color: rgba(90, 63, 107, 0.08);
+  --ring-color: rgba(90, 63, 107, 0.45);
+
+  --chart-grid: #f1e4ee;
+  --chart-axis: #b09bac;
+  --chart-axis-faint: #e6d3e2;
+  --chart-ink: #5a3f6b;
+  --chart-ink-soft: #b09bac;
+}
+
+/* ---------- metallic — cool brushed steel, slate primary ---------- */
+[data-theme="metallic"] {
+  --color-neutral-50: #eef1f5;
+  --color-neutral-100: #e4e9ef;
+  --color-neutral-200: #d3dae3;
+  --color-neutral-300: #bcc6d3;
+  --color-neutral-400: #7e8a9c;
+  --color-neutral-500: #5f6b7d;
+  --color-neutral-600: #48515f;
+  --color-neutral-700: #38404b;
+  --color-neutral-800: #1f2937;
+  --color-neutral-900: #334155;
+  --color-neutral-950: #1a2230;
+  --color-white: #f9fbfd;
+  --color-black: #1a2230;
+
+  --background: #e9edf2;
+  --foreground: #2b3440;
+  --surface: #f9fbfd;
+  --header-bg: rgb(233 237 242 / 0.88);
+  --app-bg-image: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 38%, rgba(126, 138, 156, 0.1) 100%);
+
+  --selection-bg: #334155;
+  --selection-fg: #f9fbfd;
+  --scrollbar-thumb: #bcc6d3;
+  --hatch-color: rgba(51, 65, 85, 0.09);
+  --ring-color: rgba(51, 65, 85, 0.5);
+
+  --chart-grid: #d8dee6;
+  --chart-axis: #8a94a3;
+  --chart-axis-faint: #bcc6d3;
+  --chart-ink: #334155;
+  --chart-ink-soft: #7e8a9c;
+}
+
+/* ---------- wood — warm tan/espresso ---------- */
+[data-theme="wood"] {
+  --color-neutral-50: #f7f0e6;
+  --color-neutral-100: #f1e7d8;
+  --color-neutral-200: #e7d8c2;
+  --color-neutral-300: #d8c2a4;
+  --color-neutral-400: #a98e6e;
+  --color-neutral-500: #897051;
+  --color-neutral-600: #6d583e;
+  --color-neutral-700: #574631;
+  --color-neutral-800: #413424;
+  --color-neutral-900: #4a3728;
+  --color-neutral-950: #2c2117;
+  --color-white: #fdf8f0;
+  --color-black: #2c2117;
+
+  --background: #f3ead9;
+  --foreground: #3b2f22;
+  --surface: #fdf8f0;
+  --header-bg: rgb(243 234 217 / 0.9);
+  --app-bg-image: linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0) 30%, rgba(120, 90, 56, 0.06) 100%);
+
+  --selection-bg: #4a3728;
+  --selection-fg: #fdf8f0;
+  --scrollbar-thumb: #d8c2a4;
+  --hatch-color: rgba(74, 55, 40, 0.1);
+  --ring-color: rgba(74, 55, 40, 0.5);
+
+  --chart-grid: #e7d8c2;
+  --chart-axis: #a98e6e;
+  --chart-axis-faint: #d8c2a4;
+  --chart-ink: #4a3728;
+  --chart-ink-soft: #a98e6e;
+}
+
+/* Soft accent fills/borders for every non-default theme: mix the saturated -500
+   into the theme surface so tinted "added/removed/modified" pills, access badges
+   and diff rows sit naturally on each palette (light tints on light themes,
+   muted dark tints on dark). Resolved per-theme via the inherited --surface. */
+[data-theme="dark"],
+[data-theme="colorful"],
+[data-theme="pastel"],
+[data-theme="metallic"],
+[data-theme="wood"] {
+  --color-red-50: color-mix(in oklab, var(--color-red-500) 12%, var(--surface));
+  --color-red-100: color-mix(in oklab, var(--color-red-500) 18%, var(--surface));
+  --color-red-200: color-mix(in oklab, var(--color-red-500) 30%, var(--surface));
+  --color-red-300: color-mix(in oklab, var(--color-red-500) 42%, var(--surface));
+
+  --color-emerald-50: color-mix(in oklab, var(--color-emerald-500) 12%, var(--surface));
+  --color-emerald-100: color-mix(in oklab, var(--color-emerald-500) 18%, var(--surface));
+  --color-emerald-200: color-mix(in oklab, var(--color-emerald-500) 30%, var(--surface));
+  --color-emerald-300: color-mix(in oklab, var(--color-emerald-500) 42%, var(--surface));
+
+  --color-amber-50: color-mix(in oklab, var(--color-amber-500) 14%, var(--surface));
+  --color-amber-100: color-mix(in oklab, var(--color-amber-500) 20%, var(--surface));
+  --color-amber-200: color-mix(in oklab, var(--color-amber-500) 32%, var(--surface));
+  --color-amber-300: color-mix(in oklab, var(--color-amber-500) 44%, var(--surface));
+
+  --color-sky-50: color-mix(in oklab, var(--color-sky-500) 12%, var(--surface));
+  --color-sky-200: color-mix(in oklab, var(--color-sky-500) 30%, var(--surface));
+
+  --color-violet-50: color-mix(in oklab, var(--color-violet-500) 12%, var(--surface));
+  --color-violet-200: color-mix(in oklab, var(--color-violet-500) 30%, var(--surface));
+
+  --color-teal-50: color-mix(in oklab, var(--color-teal-500) 12%, var(--surface));
+  --color-teal-200: color-mix(in oklab, var(--color-teal-500) 30%, var(--surface));
+
+  --color-rose-50: color-mix(in oklab, var(--color-rose-500) 12%, var(--surface));
+  --color-rose-200: color-mix(in oklab, var(--color-rose-500) 30%, var(--surface));
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: var(--app-bg-image, none);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-feature-settings: "tnum", "cv03", "cv04";
 }
 
 ::selection {
-  background: #0a0a0a;
-  color: #fafafa;
+  background: var(--selection-bg);
+  color: var(--selection-fg);
 }
 
 /* thin scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #d4d4d4 transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* diagonal hatch for reserved bits */
@@ -36,8 +307,8 @@ body {
     45deg,
     transparent,
     transparent 3px,
-    rgba(10, 10, 10, 0.07) 3px,
-    rgba(10, 10, 10, 0.07) 4.5px
+    var(--hatch-color) 3px,
+    var(--hatch-color) 4.5px
   );
 }
 
@@ -90,10 +361,10 @@ body {
 
 @keyframes flash-ring {
   0% {
-    box-shadow: 0 0 0 3px rgba(10, 10, 10, 0.55);
+    box-shadow: 0 0 0 3px var(--ring-color);
   }
   100% {
-    box-shadow: 0 0 0 3px rgba(10, 10, 10, 0);
+    box-shadow: 0 0 0 3px transparent;
   }
 }
 .flash-ring {

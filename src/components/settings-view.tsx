@@ -5,7 +5,9 @@ import type { AppConfig, ProjectConfig } from "@/lib/types";
 import { clearApiCache, useApi } from "@/lib/use-api";
 import { IconPlus, IconRefresh, IconX } from "./icons";
 import { PageHeader } from "./shell";
+import { ThemePicker } from "./theme-switcher";
 import { Badge, Btn, Card, ErrorBox, SectionLabel, Spinner, cx } from "./ui";
+import { BUILD_DATE, VERSION_LABEL } from "@/lib/version";
 
 type ProjectStatus = ProjectConfig & {
   status: "ok" | "error";
@@ -133,6 +135,20 @@ export function SettingsView() {
       </PageHeader>
 
       <div className="flex-1 overflow-y-auto p-6">
+        <div className="mx-auto mb-4 max-w-4xl">
+          <Card className="fade-up p-5">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="text-sm font-bold">Appearance</span>
+              <span className="font-mono text-[11px] text-neutral-400">
+                {VERSION_LABEL}
+                {BUILD_DATE && ` · built ${BUILD_DATE}`}
+              </span>
+            </div>
+            <SectionLabel className="mb-2.5">Theme — applies instantly, remembered on this device</SectionLabel>
+            <ThemePicker />
+          </Card>
+        </div>
+
         {error && <ErrorBox message={error} />}
         {loading && !draft && <Spinner />}
         {saveMsg && (

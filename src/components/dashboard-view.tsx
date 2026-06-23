@@ -73,7 +73,7 @@ function ProjectCard({ p }: { p: OverviewProject }) {
             <SectionLabel>HAL function reuse</SectionLabel>
             <div className="mt-0.5 font-mono text-2xl font-bold tracking-tight">{p.hal.reusePct.fns.toFixed(1)}%</div>
           </div>
-          <Sparkline points={p.hal.spark} width={110} height={36} color="#737373" />
+          <Sparkline points={p.hal.spark} width={110} height={36} color="var(--chart-ink-soft)" />
         </div>
       </div>
 

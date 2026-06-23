@@ -37,7 +37,7 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-200 bg-[#fafafa]/90 px-6 py-2.5 backdrop-blur">
+    <div className="sticky top-0 z-30 flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-200 bg-[var(--header-bg)] px-6 py-2.5 backdrop-blur">
       <div>
         <h1 className="text-[15px] font-semibold tracking-tight text-neutral-900">{title}</h1>
         {sub && <div className="text-[11px] text-neutral-400">{sub}</div>}

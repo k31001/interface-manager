@@ -172,26 +172,26 @@ export function LineChart({
         {/* grid */}
         {yTicks.map((t) => (
           <g key={`y${t}`}>
-            <line x1={pad.l} x2={pad.l + iw} y1={Y(t)} y2={Y(t)} stroke="#e8e8e8" strokeWidth={1} />
-            <text x={pad.l - 8} y={Y(t) + 3.5} textAnchor="end" fontSize={10} fill="#a3a3a3" fontFamily="var(--font-geist-mono)">
+            <line x1={pad.l} x2={pad.l + iw} y1={Y(t)} y2={Y(t)} stroke="var(--chart-grid)" strokeWidth={1} />
+            <text x={pad.l - 8} y={Y(t) + 3.5} textAnchor="end" fontSize={10} fill="var(--chart-axis)" fontFamily="var(--font-geist-mono)">
               {fmtY(t)}
             </text>
           </g>
         ))}
         {xTicks.map((t) => (
-          <text key={`x${t}`} x={X(t)} y={height - 10} textAnchor="middle" fontSize={10} fill="#a3a3a3" fontFamily="var(--font-geist-mono)">
+          <text key={`x${t}`} x={X(t)} y={height - 10} textAnchor="middle" fontSize={10} fill="var(--chart-axis)" fontFamily="var(--font-geist-mono)">
             {fmtX(t)}
           </text>
         ))}
         {xLabel && (
-          <text x={pad.l + iw} y={height - 10} textAnchor="end" fontSize={9} fill="#d4d4d4">
+          <text x={pad.l + iw} y={height - 10} textAnchor="end" fontSize={9} fill="var(--chart-axis-faint)">
             {xLabel}
           </text>
         )}
 
         {/* crosshair */}
         {hoverInfo && (
-          <line x1={hoverInfo.px} x2={hoverInfo.px} y1={pad.t} y2={pad.t + ih} stroke="#0a0a0a" strokeWidth={1} strokeDasharray="3 3" opacity={0.35} />
+          <line x1={hoverInfo.px} x2={hoverInfo.px} y1={pad.t} y2={pad.t + ih} stroke="var(--chart-ink)" strokeWidth={1} strokeDasharray="3 3" opacity={0.35} />
         )}
 
         {/* series */}
@@ -200,7 +200,7 @@ export function LineChart({
             <path
               d={d}
               fill="none"
-              stroke={s.color ?? "#0a0a0a"}
+              stroke={s.color ?? "var(--chart-ink)"}
               strokeWidth={1.8}
               strokeDasharray={s.dashed ? "5 4" : undefined}
               className={s.dashed ? undefined : "draw-line"}
@@ -208,14 +208,14 @@ export function LineChart({
             />
             {s.points.map((p) => (
               <g key={`${s.id}-${p.x}`}>
-                {markerGlyph(s.marker, X(p.x), Y(p.y), hoverInfo?.x === p.x ? 4 : 2.9, "#fff", s.color ?? "#0a0a0a")}
+                {markerGlyph(s.marker, X(p.x), Y(p.y), hoverInfo?.x === p.x ? 4 : 2.9, "var(--surface)", s.color ?? "var(--chart-ink)")}
                 {p.warn !== undefined && (
                   <g transform={`translate(${X(p.x)},${Y(p.y) - 13})`}>
-                    <path d="M0 -4 L4.5 3.5 L-4.5 3.5 Z" fill="#dc2626" />
+                    <path d="M0 -4 L4.5 3.5 L-4.5 3.5 Z" fill="var(--color-red-500)" />
                   </g>
                 )}
                 {showPointLabels && p.label && (
-                  <text x={X(p.x)} y={pad.t + ih + 0} fontSize={8.5} fill="#c4c4c4" textAnchor="middle" fontFamily="var(--font-geist-mono)">
+                  <text x={X(p.x)} y={pad.t + ih + 0} fontSize={8.5} fill="var(--chart-axis-faint)" textAnchor="middle" fontFamily="var(--font-geist-mono)">
                     {""}
                   </text>
                 )}
@@ -241,7 +241,7 @@ export function LineChart({
             <div key={s.id} className="flex items-center gap-2 py-px">
               <span
                 className="inline-block h-0 w-3.5 border-t-2"
-                style={{ borderColor: s.color ?? "#fff", borderStyle: s.dashed ? "dashed" : "solid" }}
+                style={{ borderColor: s.color ?? "currentColor", borderStyle: s.dashed ? "dashed" : "solid" }}
               />
               <span className="text-neutral-300">{s.label}</span>
               <span className="ml-auto pl-3 font-mono font-semibold">
@@ -262,7 +262,7 @@ export function LineChart({
   );
 }
 
-export function Sparkline({ points, width = 120, height = 34, color = "#0a0a0a" }: { points: { x: number; y: number }[]; width?: number; height?: number; color?: string }) {
+export function Sparkline({ points, width = 120, height = 34, color = "var(--chart-ink)" }: { points: { x: number; y: number }[]; width?: number; height?: number; color?: string }) {
   if (!points.length) return null;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -320,20 +320,20 @@ export function ScatterChart({
       <svg width="100%" height={height}>
         {niceTicks(yMin, yMax, 5).map((t) => (
           <g key={`y${t}`}>
-            <line x1={pad.l} x2={pad.l + iw} y1={Y(t)} y2={Y(t)} stroke="#e8e8e8" />
-            <text x={pad.l - 8} y={Y(t) + 3.5} textAnchor="end" fontSize={10} fill="#a3a3a3" fontFamily="var(--font-geist-mono)">
+            <line x1={pad.l} x2={pad.l + iw} y1={Y(t)} y2={Y(t)} stroke="var(--chart-grid)" />
+            <text x={pad.l - 8} y={Y(t) + 3.5} textAnchor="end" fontSize={10} fill="var(--chart-axis)" fontFamily="var(--font-geist-mono)">
               {fmtY(t)}
             </text>
           </g>
         ))}
         {niceTicks(xMin, xMax, 6).map((t) => (
-          <text key={`x${t}`} x={X(t)} y={height - 16} textAnchor="middle" fontSize={10} fill="#a3a3a3" fontFamily="var(--font-geist-mono)">
+          <text key={`x${t}`} x={X(t)} y={height - 16} textAnchor="middle" fontSize={10} fill="var(--chart-axis)" fontFamily="var(--font-geist-mono)">
             {fmtX(t)}
           </text>
         ))}
         {/* identity line: y = x */}
         {hi > lo && (
-          <line x1={X(lo)} y1={Y(lo)} x2={X(hi)} y2={Y(hi)} stroke="#d4d4d4" strokeDasharray="4 4" />
+          <line x1={X(lo)} y1={Y(lo)} x2={X(hi)} y2={Y(hi)} stroke="var(--chart-axis-faint)" strokeDasharray="4 4" />
         )}
         {groups.map((g) =>
           g.points.map((p, i) => (
@@ -343,17 +343,17 @@ export function ScatterChart({
               onMouseEnter={() => setHover({ gx: X(p.x), gy: Y(p.y), text: `${g.label} ${p.label ?? ""} — ${fmtX(p.x)} / ${fmtY(p.y)}` })}
               onMouseLeave={() => setHover(null)}
             >
-              {markerGlyph(g.marker, X(p.x), Y(p.y), 4.2, g.hollow ? "#fff" : (g.color ?? "#0a0a0a"), g.color ?? "#0a0a0a", 1.5)}
+              {markerGlyph(g.marker, X(p.x), Y(p.y), 4.2, g.hollow ? "var(--surface)" : (g.color ?? "var(--chart-ink)"), g.color ?? "var(--chart-ink)", 1.5)}
             </g>
           ))
         )}
         {xTitle && (
-          <text x={pad.l + iw / 2} y={height - 2} textAnchor="middle" fontSize={9.5} fill="#a3a3a3">
+          <text x={pad.l + iw / 2} y={height - 2} textAnchor="middle" fontSize={9.5} fill="var(--chart-axis)">
             {xTitle}
           </text>
         )}
         {yTitle && (
-          <text x={12} y={pad.t + ih / 2} textAnchor="middle" fontSize={9.5} fill="#a3a3a3" transform={`rotate(-90 12 ${pad.t + ih / 2})`}>
+          <text x={12} y={pad.t + ih / 2} textAnchor="middle" fontSize={9.5} fill="var(--chart-axis)" transform={`rotate(-90 12 ${pad.t + ih / 2})`}>
             {yTitle}
           </text>
         )}
@@ -376,8 +376,8 @@ export function ChartLegend({ items }: { items: { label: string; color?: string;
       {items.map((it) => (
         <span key={it.label} className="inline-flex items-center gap-1.5">
           <svg width="22" height="10">
-            <line x1="0" y1="5" x2="22" y2="5" stroke={it.color ?? "#0a0a0a"} strokeWidth={1.8} strokeDasharray={it.dashed ? "4 3" : undefined} />
-            {markerGlyph(it.marker, 11, 5, 3, "#fff", it.color ?? "#0a0a0a", 1.3)}
+            <line x1="0" y1="5" x2="22" y2="5" stroke={it.color ?? "var(--chart-ink)"} strokeWidth={1.8} strokeDasharray={it.dashed ? "4 3" : undefined} />
+            {markerGlyph(it.marker, 11, 5, 3, "var(--surface)", it.color ?? "var(--chart-ink)", 1.3)}
           </svg>
           {it.label}
         </span>
@@ -391,7 +391,7 @@ export function MarkerSwatch({ shape, color, size = 12, hollow }: { shape?: Mark
   const c = size / 2;
   return (
     <svg width={size} height={size} className="inline-block shrink-0 align-middle">
-      {markerGlyph(shape, c, c, size * 0.34, hollow ? "#fff" : color, color, 1.4)}
+      {markerGlyph(shape, c, c, size * 0.34, hollow ? "var(--surface)" : color, color, 1.4)}
     </svg>
   );
 }
