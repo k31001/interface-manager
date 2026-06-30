@@ -83,6 +83,38 @@ disk-cached, so every later open stays instant.
   scroll re-anchors on the next frame so scroll-to-register stays accurate
   despite the intrinsic-size estimate.
 
+## Phase 4 — "register map at a glance" at scale (implemented)
+
+Opening an IP renders every register as a bit-field row. Profiling at 100/300/500
+synthetic registers showed where the time actually goes:
+
+| stage | 300 regs | 500 regs |
+|---|---|---|
+| server RDL parse | 10.6 ms | 18.2 ms (per-blob cached + prefetch-warmed → usually a hit) |
+| client layout (reflow) | ~6 ms | ~10 ms |
+| **client React mount** | ~50–75 ms dev | ~100–110 ms dev (**the cost**) |
+
+So neither parsing nor layout is the bottleneck — it's React **mounting one row per
+register**. Two changes:
+
+- **Delegated field tooltip.** Every field cell used to be a stateful `HoverTip`
+  component; with hundreds of registers that is thousands of components + effects.
+  Cells are now plain `data-*` buttons and a single `FieldTipScope` delegates hover
+  to one shared overlay. ~17% fewer nodes and far less memory (it holds up now that
+  prefetch keeps every module resident) — though on its own it barely moved render
+  time, because the cost is row *count*, not per-cell components. (`content-visibility`
+  doesn't help either: it skips layout, which was already cheap, not the React mount.)
+- **Row virtualization** (`RegmapTable`). The table is its own scroll area and only
+  the rows in/near the viewport are mounted (binary-searched window + spacer rows
+  preserve scroll height). Render is now **constant in register count**: 500 regs
+  went from ~104 ms → ~20 ms and 11,590 → ~590 DOM nodes, with the bit-field
+  alignment, access accents, sticky name column, tooltip and field-click all intact.
+
+**Serve a production build.** `run.sh`/`run.ps1` now build and run `next start`
+instead of `next dev`. Dev double-renders every component (React StrictMode), so a
+production build is ~2× faster app-wide for free; `--dev` / `-Dev` still starts the
+hot-reload dev server.
+
 Remaining ideas if a project pushes further: the same tree/detail split for the
-HAL viewer, regmap-table row virtualization, and a cheap structural count to skip
-the SFR skeleton's first parse.
+HAL viewer, a sticky bit-number header inside the virtualized map, and a cheap
+structural count to skip the SFR skeleton's first parse.

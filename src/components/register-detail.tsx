@@ -8,7 +8,7 @@ import { bitsLabel, hex } from "@/lib/format";
 import type { FnRef } from "@/lib/trace";
 import type { SfrField, SfrModule, SfrReg } from "@/lib/types";
 import { IconCode, IconFn, IconPulse } from "./icons";
-import { AccessLegend, BitHeaderRow, RegBitRow } from "./regmap";
+import { AccessLegend, BitHeaderRow, FieldTipScope, RegBitRow } from "./regmap";
 import { Badge, Btn, Card, cx } from "./ui";
 import { RegHistory } from "./reg-history";
 
@@ -208,7 +208,7 @@ export function RegisterCard({
       {reg.desc && <p className="px-4 pt-2.5 text-xs leading-relaxed text-neutral-500">{reg.desc}</p>}
 
       {/* bit strip */}
-      <div className="overflow-x-auto px-4 pt-3">
+      <FieldTipScope className="overflow-x-auto px-4 pt-3">
         <table className="w-full border-separate border-spacing-0" style={{ minWidth: 168 + reg.width * 18, tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: 168 }} />
@@ -222,7 +222,7 @@ export function RegisterCard({
           </tbody>
         </table>
         <AccessLegend regs={[reg]} className="mt-2.5 mb-0.5" />
-      </div>
+      </FieldTipScope>
 
       {/* field table */}
       <table className="mt-3 w-full border-t border-neutral-200 text-xs">
