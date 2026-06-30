@@ -47,6 +47,16 @@ on demand.
   module's register map when an IP/module is opened (`IpRegmap`, `ModuleView`).
   The browser no longer receives or holds the whole SFR model.
 
+**Background prefetch (so on-demand never feels slow).** After the skeleton
+loads, a client-side store (`src/lib/module-store.tsx`) quietly fetches every
+module's register map one at a time during browser idle time, caching each by
+path. A subtle 2px top bar shows progress and fades when done. Clicking an
+IP/module fetches it immediately (ahead of the queue) and biases the queue toward
+**nearby tree locations** (same IP → same subsystem → rest), so the registers a
+user is likely to open next are warmed first. Once warmed, clicks are instant.
+Trade-off: the client eventually holds every module again (cap/LRU if a project
+is enormous), but first paint stays skeleton-fast and clicks never block.
+
 The HAL viewer still loads its model in full, but now benefits from the per-blob
 parse cache (the big stats/multi-tag win); applying the same tree/detail split to
 the HAL viewer is the next step.

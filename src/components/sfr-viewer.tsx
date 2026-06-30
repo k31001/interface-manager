@@ -1,11 +1,11 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { dedupeChannels } from "@/lib/channels";
+import { useEffect, useMemo, useState } from "react";
 import { hex } from "@/lib/format";
+import { ModuleStoreProvider, useModuleFocusRequest, useModules, usePrefetchProgress } from "@/lib/module-store";
 import type { TraceResult } from "@/lib/trace";
-import type { SfrModule, SfrTree, SfrTreeIp, SfrTreeModule, SfrTreeSubsystem, SfrTreeSystem, TagInfo } from "@/lib/types";
+import type { SfrTree, SfrTreeIp, SfrTreeModule, SfrTreeSubsystem, SfrTreeSystem, TagInfo } from "@/lib/types";
 import { useApi, useStream } from "@/lib/use-api";
 import { IconChevron, IconDoc, IconFolder } from "./icons";
 import { AccessLegend, RegmapTable } from "./regmap";
@@ -25,13 +25,19 @@ function flattenTree(tree: SfrTree): TreeMod[] {
   return out;
 }
 
-/** Fetch full register-map detail for a set of module paths, channel-deduped. */
-function useModules(project: string, tag: string | null | undefined, paths: string[]) {
-  const q = paths.map((p) => encodeURIComponent(p)).join(",");
-  const url = q ? `/api/projects/${project}/sfr/modules?${tag ? `ref=${encodeURIComponent(tag)}&` : ""}paths=${q}` : null;
-  const { data, error, loading } = useApi<SfrModule[]>(url);
-  const mods = useMemo(() => (data ? data.map((m) => ({ ...m, regs: dedupeChannels(m.regs) })) : null), [data]);
-  return { mods, error, loading };
+/** Subtle top bar showing background-prefetch progress; fades out when complete. */
+function PrefetchBar() {
+  const { loaded, total } = usePrefetchProgress();
+  const pct = total ? Math.min(100, (loaded / total) * 100) : 0;
+  const active = total > 0 && loaded < total;
+  return (
+    <div className="h-[2px] w-full shrink-0 bg-transparent" aria-hidden>
+      <div
+        className="h-full bg-neutral-400 transition-[width,opacity] duration-500 ease-out"
+        style={{ width: `${pct}%`, opacity: active ? 0.7 : 0 }}
+      />
+    </div>
+  );
 }
 
 // ---------------- tree ----------------
@@ -195,15 +201,11 @@ function OverviewCards({ tree, onSelect }: { tree: SfrTree; onSelect: (sel: stri
 function IpRegmap({
   tree,
   ipSel,
-  project,
-  tag,
   onSelectModule,
   onFieldClick,
 }: {
   tree: SfrTree;
   ipSel: string; // ip:sys/sub/ip
-  project: string;
-  tag?: string | null;
   onSelectModule: (path: string) => void;
   onFieldClick: (modPath: string, reg: string, field: string) => void;
 }) {
@@ -215,7 +217,13 @@ function IpRegmap({
         for (const ip of sub.ips) if (`ip:${sys.name}/${sub.name}/${ip.name}` === ipSel) return ip.modules;
     return null;
   }, [tree, ipSel]);
-  const { mods, loading } = useModules(project, tag, (ipMods ?? []).map((m) => m.path));
+  const paths = useMemo(() => (ipMods ?? []).map((m) => m.path), [ipMods]);
+  const mods = useModules(paths);
+  const { requestNow, setFocus } = useModuleFocusRequest();
+  useEffect(() => {
+    setFocus({ sub: subName, ip: ipName });
+    requestNow(paths);
+  }, [requestNow, setFocus, subName, ipName, paths]);
 
   if (!ipMods) return <ErrorBox message={`IP not found: ${path}`} />;
   const regCount = ipMods.reduce((n, m) => n + m.regs, 0);
@@ -245,9 +253,9 @@ function IpRegmap({
             onFieldClick={(modPath, reg, field) => onFieldClick(modPath, reg.name, field.name)}
           />
         </>
-      ) : loading ? (
+      ) : (
         <Spinner label="Loading register map…" />
-      ) : null}
+      )}
     </div>
   );
 }
@@ -270,15 +278,22 @@ function ModuleView({
   tag?: string | null;
 }) {
   const { data: trace } = useApi<TraceResult>(`/api/projects/${project}/trace${tag ? `?ref=${encodeURIComponent(tag)}` : ""}`);
-  const { mods, loading } = useModules(project, tag, [path]);
+  const paths = useMemo(() => [path], [path]);
+  const mods = useModules(paths);
+  const { requestNow, setFocus } = useModuleFocusRequest();
   const ctx = useMemo(() => flattenTree(tree).find((x) => x.mod.path === path), [tree, path]);
+  useEffect(() => {
+    if (ctx) setFocus({ sub: ctx.subsystem, ip: ctx.ip });
+    requestNow(paths);
+  }, [requestNow, setFocus, ctx, paths]);
 
   if (!ctx) return <ErrorBox message={`Module not found at this tag: ${path}`} />;
   const meta = ctx.mod;
   const mod = mods?.[0] ?? null;
-  const addrSpan = mod && mod.regs.length
-    ? `${hex(Math.min(...mod.regs.map((r) => r.offset)), 4)} – ${hex(Math.max(...mod.regs.map((r) => r.offset)), 4)}`
-    : "—";
+  const addrSpan =
+    mod && mod.regs.length
+      ? `${hex(Math.min(...mod.regs.map((r) => r.offset)), 4)} – ${hex(Math.max(...mod.regs.map((r) => r.offset)), 4)}`
+      : "—";
 
   return (
     <div className="fade-up flex flex-col gap-4">
@@ -299,9 +314,9 @@ function ModuleView({
       {meta.desc && <p className="-mt-2 max-w-3xl text-xs leading-relaxed text-neutral-500">{meta.desc}</p>}
       {mod ? (
         <ModuleDetail mod={mod} highlightReg={reg} highlightField={field} project={project} regUsedBy={trace?.regUsedBy} />
-      ) : loading ? (
+      ) : (
         <Spinner label="Loading registers…" />
-      ) : null}
+      )}
     </div>
   );
 }
@@ -334,62 +349,63 @@ export function SfrViewer({ project, projectName }: { project: string; projectNa
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader
-        title={
-          <>
-            SFR Viewer <span className="ml-1 font-mono text-xs font-normal text-neutral-400">{projectName}</span>
-          </>
-        }
-        sub={
-          tree
-            ? `${tree.totals.modules} modules · ${tree.totals.regs} registers · ${tree.totals.fields} fields @ ${tree.ref}`
-            : " "
-        }
-      >
-        {tagsData && <TagSelect tags={tagsData.tags} value={tag} onChange={(t) => setParams({ tag: t, reg: null, field: null })} />}
-      </PageHeader>
+    <ModuleStoreProvider project={project} tag={tag} tree={tree ?? null}>
+      <div className="flex h-full flex-col">
+        <PrefetchBar />
+        <PageHeader
+          title={
+            <>
+              SFR Viewer <span className="ml-1 font-mono text-xs font-normal text-neutral-400">{projectName}</span>
+            </>
+          }
+          sub={
+            tree
+              ? `${tree.totals.modules} modules · ${tree.totals.regs} registers · ${tree.totals.fields} fields @ ${tree.ref}`
+              : " "
+          }
+        >
+          {tagsData && <TagSelect tags={tagsData.tags} value={tag} onChange={(t) => setParams({ tag: t, reg: null, field: null })} />}
+        </PageHeader>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-white">
-          <div className="p-2.5 pb-1">
-            <input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter tree…"
-              className="h-7 w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs outline-none placeholder:text-neutral-400 focus:border-neutral-500"
-            />
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-white">
+            <div className="p-2.5 pb-1">
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter tree…"
+                className="h-7 w-full rounded-md border border-neutral-200 bg-neutral-50 px-2 text-xs outline-none placeholder:text-neutral-400 focus:border-neutral-500"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {tree ? (
+                <Tree tree={tree} sel={sel} onSelect={(s) => setParams({ sel: s, reg: null, field: null })} filter={filter} />
+              ) : (
+                <Spinner />
+              )}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {tree ? (
-              <Tree tree={tree} sel={sel} onSelect={(s) => setParams({ sel: s, reg: null, field: null })} filter={filter} />
-            ) : (
-              <Spinner />
+
+          <div className="min-w-0 flex-1 overflow-y-auto p-6">
+            {error && <ErrorBox message={error} />}
+            {loading && !tree && (
+              <ProgressPanel title="Parsing SystemRDL…" label={progress?.label} done={progress?.done} total={progress?.total} />
+            )}
+            {tree && !sel && <OverviewCards tree={tree} onSelect={(s) => setParams({ sel: s })} />}
+            {tree && sel?.startsWith("ip:") && (
+              <IpRegmap
+                tree={tree}
+                ipSel={sel}
+                onSelectModule={(path) => setParams({ sel: path })}
+                onFieldClick={(modPath, r, f) => setParams({ sel: modPath, reg: r, field: f })}
+              />
+            )}
+            {tree && sel && !sel.startsWith("ip:") && (
+              <ModuleView tree={tree} path={sel} reg={reg} field={field} project={project} tag={tag} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
             )}
           </div>
         </div>
-
-        <div className="min-w-0 flex-1 overflow-y-auto p-6">
-          {error && <ErrorBox message={error} />}
-          {loading && !tree && (
-            <ProgressPanel title="Parsing SystemRDL…" label={progress?.label} done={progress?.done} total={progress?.total} />
-          )}
-          {tree && !sel && <OverviewCards tree={tree} onSelect={(s) => setParams({ sel: s })} />}
-          {tree && sel?.startsWith("ip:") && (
-            <IpRegmap
-              tree={tree}
-              ipSel={sel}
-              project={project}
-              tag={tag}
-              onSelectModule={(path) => setParams({ sel: path })}
-              onFieldClick={(modPath, r, f) => setParams({ sel: modPath, reg: r, field: f })}
-            />
-          )}
-          {tree && sel && !sel.startsWith("ip:") && (
-            <ModuleView tree={tree} path={sel} reg={reg} field={field} project={project} tag={tag} onBack={(ipSel) => setParams({ sel: ipSel, reg: null, field: null })} />
-          )}
-        </div>
       </div>
-    </div>
+    </ModuleStoreProvider>
   );
 }
